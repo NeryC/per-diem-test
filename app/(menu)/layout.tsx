@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { TimeSimulatorBanner } from "@/components/menu/time-simulator-banner";
 
 export default function MenuLayout({
   children,
@@ -6,11 +7,16 @@ export default function MenuLayout({
   children: ReactNode;
 }): ReactNode {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Per Diem Menu</h1>
-      </header>
-      {children}
-    </div>
+    <>
+      <TimeSimulatorBanner />
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6">
+        <header className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Per Diem Menu
+          </h1>
+        </header>
+        {children}
+      </div>
+    </>
   );
 }
