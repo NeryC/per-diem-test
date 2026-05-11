@@ -86,7 +86,7 @@ export const ItemSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
   description: z.string().nullable(),
-  imageUrl: z.string().url().nullable(),
+  imageUrl: z.url().nullable(),
   categoryId: z.string().nullable(),
   variations: z.array(ItemVariationSchema),
   modifierListInfo: z.array(ItemModifierListInfoSchema),
@@ -111,7 +111,7 @@ export const CatalogSnapshotSchema = z.object({
   items: z.array(ItemSchema),
   categories: z.array(CategorySchema),
   modifierLists: z.array(ModifierListSchema),
-  fetchedAt: z.string().datetime(),
+  fetchedAt: z.iso.datetime(),
 });
 export type CatalogSnapshot = z.infer<typeof CatalogSnapshotSchema>;
 
