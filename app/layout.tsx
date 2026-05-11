@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
+import { CartDrawer } from "@/components/cart/cart-drawer";
+import { TimeSimulatorBanner } from "@/components/menu/time-simulator-banner";
 import { RegisterServiceWorker } from "@/components/register-sw";
 import { TimeProvider } from "@/lib/time/provider";
 import "./globals.css";
@@ -39,7 +42,19 @@ export default function RootLayout({
           Skip to main content
         </a>
         <Suspense fallback={null}>
-          <TimeProvider>{children}</TimeProvider>
+          <TimeProvider>
+            <TimeSimulatorBanner />
+            <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 pt-6 pb-2">
+              <Link
+                href="/"
+                className="text-2xl font-semibold tracking-tight hover:underline"
+              >
+                Per Diem Test
+              </Link>
+              <CartDrawer />
+            </header>
+            {children}
+          </TimeProvider>
         </Suspense>
         <RegisterServiceWorker />
       </body>
