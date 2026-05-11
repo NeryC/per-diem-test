@@ -86,6 +86,15 @@ closed_today | unavailable`.
   to every resolver call so a simulated clock looks identical to a real
   one to the rest of the app.
 
+> Note on Square 2024-12-18: the Catalog API in this version of Square
+> dropped support for `category_data.availability_periods` (scheduled
+> menu hours moved to the dedicated Menus API). For the demo,
+> `lib/square/demo-availability.ts` provides a small local overlay
+> keyed by category name so the resolver has data to work against. The
+> resolver, UI, tests, and wire shapes are unchanged; only the data
+> source for the Breakfast windows is local. A production integration
+> would replace the overlay with the Menus API.
+
 ### Cart
 
 - `lib/cart/store.ts` is a Zustand store persisted to `localStorage`.

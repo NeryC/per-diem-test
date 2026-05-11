@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import type { Square } from "square";
 import { getSquareClient } from "./client";
+import { getDemoWindows } from "./demo-availability";
 import { safeSquareCall, type Result } from "./errors";
 import {
   CatalogSnapshotSchema,
@@ -254,10 +255,17 @@ function normalizeCategory(
     if (!ov.locationId) continue;
     overrides[ov.locationId] = parseAvailabilityPeriods(ov.availabilityPeriods);
   }
+  const name = data?.name ?? "";
+  // Square 2024-12-18 dropped category_data.availability_periods. When the
+  // SDK returns nothing for this category, fall back to a local demo overlay
+  // keyed by name so the time-of-day showcase has data to resolve. Real
+  // windows from any future API path still win.
+  const availabilityWindows =
+    windows.length > 0 ? windows : (getDemoWindows(name) ?? []);
   return {
     id: obj.id,
-    name: data?.name ?? "",
-    availabilityWindows: windows,
+    name,
+    availabilityWindows,
     locationOverrides: overrides,
     presentAtAllLocations: obj.presentAtAllLocations ?? true,
     presentAtLocationIds: obj.presentAtLocationIds ?? [],
