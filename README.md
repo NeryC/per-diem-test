@@ -140,6 +140,15 @@ CountState>` to consumers.
   they are looking at stale data and can retry.
 - Inventory is **deliberately not cached.** Caching stock would lie
   about what is buyable right now; the 30 s poll stays live.
+- A hand-rolled service worker (`public/sw.js`, registered by
+  `components/register-sw.tsx`) handles the **cold-offline** case where
+  the browser cannot even reach the HTML shell. It uses network-first
+  for navigations with a cached `/` fallback, cache-first for hashed
+  Next.js static assets, stale-while-revalidate for `/api/catalog` and
+  `/api/locations`, and leaves `/api/inventory` as network-only so
+  stock is never served stale. `lib/offline-cache.ts` continues to
+  cover the warm-offline data path with synchronous localStorage
+  reads.
 
 ---
 
@@ -192,14 +201,14 @@ in both NY and LA.
 
 ## Bonus status
 
-| Bonus                    | Status | Notes                                                                                      |
-| ------------------------ | ------ | ------------------------------------------------------------------------------------------ |
-| Time-of-day availability | Done   | Pure resolver, 11 spec tests, DST forward + backward + midnight-crossing, `?at=` simulator |
-| Search                   | Done   | Diacritic-insensitive, multi-token AND, `/` keyboard shortcut, debounced                   |
-| Modifiers                | Done   | `selection_type` + `min`/`max` + per-item overrides, snapshotted into cart at add time     |
-| Cart                     | Done   | Zustand + `localStorage`, `bigint` money, location-scoped with switch dialog               |
-| Out-of-stock (Inventory) | Done   | 30-s polling, visibility-aware, OOS variation disabling, auto-select first in-stock        |
-| Offline-friendly         | Done   | localStorage stale-while-revalidate of catalog + locations, stale banner on refresh fail   |
+| Bonus                    | Status | Notes                                                                                                    |
+| ------------------------ | ------ | -------------------------------------------------------------------------------------------------------- |
+| Time-of-day availability | Done   | Pure resolver, 11 spec tests, DST forward + backward + midnight-crossing, `?at=` simulator               |
+| Search                   | Done   | Diacritic-insensitive, multi-token AND, `/` keyboard shortcut, debounced                                 |
+| Modifiers                | Done   | `selection_type` + `min`/`max` + per-item overrides, snapshotted into cart at add time                   |
+| Cart                     | Done   | Zustand + `localStorage`, `bigint` money, location-scoped with switch dialog                             |
+| Out-of-stock (Inventory) | Done   | 30-s polling, visibility-aware, OOS variation disabling, auto-select first in-stock                      |
+| Offline-friendly         | Done   | stale-while-revalidate of catalog + locations, with a service worker that handles cold offline opens too |
 
 ---
 

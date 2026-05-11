@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
+import { RegisterServiceWorker } from "@/components/register-sw";
 import { TimeProvider } from "@/lib/time/provider";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <TimeProvider>{children}</TimeProvider>
         </Suspense>
+        <RegisterServiceWorker />
       </body>
     </html>
   );
