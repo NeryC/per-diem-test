@@ -39,8 +39,12 @@ function uuid(): string {
 const BIGINT_PATTERN = /^\d+n$/;
 
 const storage = createJSONStorage<CartState & CartActions>(() => localStorage, {
-  reviver: (_key: string, value: unknown): unknown => {
-    if (typeof value === "string" && BIGINT_PATTERN.test(value)) {
+  reviver: (key: string, value: unknown): unknown => {
+    if (
+      key === "amount" &&
+      typeof value === "string" &&
+      BIGINT_PATTERN.test(value)
+    ) {
       return BigInt(value.slice(0, -1));
     }
     return value;
@@ -73,7 +77,18 @@ export const useCart = create<CartState & CartActions>()(
         set({ locationId, lines: [] });
       },
       addLine: (line: Omit<CartLineItem, "lineId">): void => {
-        set((s) => ({ lines: [...s.lines, { ...line, lineId: uuid() }] }));
+        set((s) => {
+          if (s.locationId !== null && s.locationId !== line.locationId) {
+            throw new Error(
+              `Cart locationId mismatch: store=${s.locationId}, line=${line.locationId}. ` +
+                `Use forceSetLocationAndClear before adding lines from a different location.`,
+            );
+          }
+          return {
+            locationId: s.locationId ?? line.locationId,
+            lines: [...s.lines, { ...line, lineId: uuid() }],
+          };
+        });
       },
       updateQty: (lineId: string, qty: number): void => {
         set((s) => ({
