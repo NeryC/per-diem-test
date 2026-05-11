@@ -188,13 +188,13 @@ pnpm test
 
 Currently 50 tests across:
 
-- `lib/square/availability.test.ts` — resolver state machine, 11 cases
-- `lib/square/zoned.test.ts` — wall-clock math, DST, midnight crossings
-- `lib/money.test.ts` — bigint money formatting and arithmetic
-- `lib/cart/selectors.test.ts` — line total + subtotal selectors
-- `lib/cart/store.test.ts` — store actions, location guard, persistence
-- `lib/square/errors.test.ts` — Square SDK error normalization
-- `lib/search.test.ts` — diacritic-insensitive tokenized matching
+- `tests/availability.test.ts` — resolver state machine, 11 cases
+- `tests/zoned.test.ts` — wall-clock math, DST, midnight crossings
+- `tests/money.test.ts` — bigint money formatting and arithmetic
+- `tests/cart-selectors.test.ts` — line total + subtotal selectors
+- `tests/cart-store.test.ts` — store actions, location guard, persistence
+- `tests/square-errors.test.ts` — Square SDK error normalization
+- `tests/search.test.ts` — diacritic-insensitive tokenized matching
 
 ---
 
