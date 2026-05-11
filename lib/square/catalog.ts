@@ -2,7 +2,6 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import type { Square } from "square";
 import { getSquareClient } from "./client";
-import { getDemoWindows } from "./demo-availability";
 import { safeSquareCall, type Result } from "./errors";
 import {
   CatalogSnapshotSchema,
@@ -228,11 +227,31 @@ function normalizeCategory(
   // the discriminator). Skip records without one.
   if (!obj.id) return null;
   const data = obj.categoryData;
+  // Primary path: Square 2024-12-18 references AVAILABILITY_PERIOD objects by
+  // id from `category_data.availability_period_ids`. Resolve each against the
+  // map built from the same list response.
   const availabilityIds = data?.availabilityPeriodIds ?? [];
   const windows: AvailabilityWindow[] = [];
   for (const periodId of availabilityIds) {
     const w = availabilityById.get(periodId);
     if (w) windows.push(...w);
+  }
+  // Fallback: older Square versions (and some merchant configs) return the
+  // inline `availability_periods` shape instead. The SDK still types it on
+  // CatalogCategory, so we read it defensively when the id-based path is
+  // empty. This branch is rarely hit against 2024-12-18 but keeps the
+  // normalizer robust across API version drift.
+  if (windows.length === 0) {
+    const legacy = (
+      data as
+        | {
+            availabilityPeriods?: Square.CatalogAvailabilityPeriod[] | null;
+          }
+        | undefined
+    )?.availabilityPeriods;
+    if (legacy && legacy.length > 0) {
+      windows.push(...parseAvailabilityPeriods(legacy));
+    }
   }
   // Square v44's CatalogCategory does not surface per-location override
   // windows in the SDK type; the spec contract still wants the shape
@@ -256,16 +275,10 @@ function normalizeCategory(
     overrides[ov.locationId] = parseAvailabilityPeriods(ov.availabilityPeriods);
   }
   const name = data?.name ?? "";
-  // Square 2024-12-18 dropped category_data.availability_periods. When the
-  // SDK returns nothing for this category, fall back to a local demo overlay
-  // keyed by name so the time-of-day showcase has data to resolve. Real
-  // windows from any future API path still win.
-  const availabilityWindows =
-    windows.length > 0 ? windows : (getDemoWindows(name) ?? []);
   return {
     id: obj.id,
     name,
-    availabilityWindows,
+    availabilityWindows: windows,
     locationOverrides: overrides,
     presentAtAllLocations: obj.presentAtAllLocations ?? true,
     presentAtLocationIds: obj.presentAtLocationIds ?? [],

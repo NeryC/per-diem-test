@@ -112,7 +112,10 @@ async function searchExistingItems(prefix) {
 }
 
 /**
- * Search for ALL "seed:" catalog objects (items, categories, modifier lists).
+ * Search for ALL "seed:" catalog objects (items, categories, modifier lists,
+ * availability periods). AVAILABILITY_PERIOD objects don't have a `name`
+ * attribute, so the prefix query won't match them — we list them separately
+ * and let the caller merge.
  * @param {string} prefix
  */
 async function searchAllSeedObjects(prefix) {
@@ -126,7 +129,45 @@ async function searchAllSeedObjects(prefix) {
     },
     limit: 1000,
   });
-  return Array.isArray(data.objects) ? data.objects : [];
+  const named = Array.isArray(data.objects) ? data.objects : [];
+  // Pull every AVAILABILITY_PERIOD in the sandbox via list (search has no
+  // unnamed-object filter that fits). The sandbox only contains the ones
+  // this script creates, so this is safe; for production you'd reference
+  // them by category id_mappings instead.
+  const apData = await squareFetch(
+    "/v2/catalog/list?types=AVAILABILITY_PERIOD",
+    "GET",
+  );
+  const aps = Array.isArray(apData.objects) ? apData.objects : [];
+  return [...named, ...aps];
+}
+
+/**
+ * Delete a single catalog object by id, swallowing 404s and reporting status.
+ * @param {string} id
+ */
+async function cleanupProbeObject(id) {
+  try {
+    const res = await fetch(`${BASE}/v2/catalog/object/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Square-Version": SQUARE_VERSION,
+      },
+    });
+    if (res.status === 404) {
+      console.log(`probe cleanup: not found (${id})`);
+      return;
+    }
+    if (!res.ok) {
+      const text = await res.text();
+      console.log(`probe cleanup: failed (${id}, status ${res.status}): ${text}`);
+      return;
+    }
+    console.log(`probe cleanup: deleted (${id})`);
+  } catch (err) {
+    console.log(`probe cleanup: error (${id}): ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 /**
@@ -174,15 +215,30 @@ async function setOutOfStock(catalogObjectId, locationId) {
 }
 
 /**
- * Build the breakfast availability_periods array for MON-FRI 06:00-11:00.
+ * Build standalone AVAILABILITY_PERIOD CatalogObjects for breakfast hours
+ * (MON-FRI 06:00-11:00). Square 2024-12-18 models category availability as
+ * separate AVAILABILITY_PERIOD objects referenced by id from
+ * `category_data.availability_period_ids`.
  */
-function breakfastAvailability() {
+function breakfastAvailabilityObjects() {
   return ["MON", "TUE", "WED", "THU", "FRI"].map((d) => ({
-    day_of_week: d,
-    start_local_time: "06:00:00",
-    end_local_time: "11:00:00",
+    type: "AVAILABILITY_PERIOD",
+    id: `#ap-breakfast-${d}`,
+    availability_period_data: {
+      day_of_week: d,
+      start_local_time: "06:00:00",
+      end_local_time: "11:00:00",
+    },
   }));
 }
+
+const BREAKFAST_AP_TEMP_IDS = [
+  "#ap-breakfast-MON",
+  "#ap-breakfast-TUE",
+  "#ap-breakfast-WED",
+  "#ap-breakfast-THU",
+  "#ap-breakfast-FRI",
+];
 
 /**
  * Construct catalog object payloads. The primary location id is used to make
@@ -211,13 +267,18 @@ function buildCatalogObjects(primaryLocationId, multiLocation) {
     id: "#cat-sandwiches",
     category_data: { name: "seed: Sandwiches", ordinal: 3 },
   });
+  // AVAILABILITY_PERIOD objects must be in the same batch as the category
+  // that references them so Square can resolve the temp ids cross-references.
+  for (const ap of breakfastAvailabilityObjects()) {
+    objects.push(ap);
+  }
   objects.push({
     type: "CATEGORY",
     id: "#cat-breakfast",
     category_data: {
       name: "seed: Breakfast",
       ordinal: 4,
-      availability_periods: breakfastAvailability(),
+      availability_period_ids: BREAKFAST_AP_TEMP_IDS,
     },
   });
 
@@ -458,6 +519,10 @@ async function main() {
   const multiLocation = locations.length >= 2;
 
   if (reset) {
+    // A research probe AVAILABILITY_PERIOD was left in the sandbox during
+    // development. Sweep it on every --reset; Square may have already
+    // garbage-collected it, in which case the 404 is logged and ignored.
+    await cleanupProbeObject("C37VVVYUFOMWSZWNIBONGYKE");
     console.log('Reset requested. Searching for existing "seed:" objects...');
     const seedObjects = await searchAllSeedObjects("seed:");
     if (seedObjects.length === 0) {
