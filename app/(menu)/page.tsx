@@ -20,12 +20,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/lib/cart/store";
 import {
   fetchCatalog,
-  fetchInventory,
   fetchLocations,
   groupItemsByCategory,
   isItemAtLocation,
   type CategoryGroup,
-  type InventorySnapshot,
 } from "@/lib/menu";
 import { matchesQuery } from "@/lib/search";
 import {
@@ -34,6 +32,7 @@ import {
 } from "@/lib/square/availability";
 import { useNow } from "@/lib/time/provider";
 import type { WireCatalog, WireLocation } from "@/lib/types";
+import { useInventoryPolling } from "@/lib/use-inventory-polling";
 import { useSelectedLocation } from "@/lib/use-selected-location";
 
 interface MenuData {
@@ -99,63 +98,7 @@ export default function MenuHomePage(): ReactNode {
     error: null,
   });
   const [tick, setTick] = useState(0);
-  const [inventory, setInventory] = useState<InventorySnapshot>({});
-
-  // Visibility-aware inventory polling. A failed refetch keeps the last
-  // good snapshot rather than wiping the UI to "untracked"; the next
-  // 30s tick will recover. Pauses while the tab is hidden so background
-  // tabs don't burn rate limit, and resumes immediately on focus.
-  // Refs: spec §6.1
-  useEffect(() => {
-    if (!selectedLocationId) return;
-    let cancel = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const schedule = (): void => {
-      if (cancel) return;
-      if (
-        typeof document !== "undefined" &&
-        document.visibilityState !== "visible"
-      ) {
-        return;
-      }
-      timer = setTimeout(() => {
-        void tick30();
-      }, 30_000);
-    };
-
-    const tick30 = async (): Promise<void> => {
-      try {
-        const inv = await fetchInventory(selectedLocationId);
-        if (!cancel) setInventory(inv);
-      } catch {
-        // Swallow — keep last good inventory rather than wiping the UI.
-      }
-      schedule();
-    };
-
-    void tick30();
-
-    const onVis = (): void => {
-      if (document.visibilityState === "visible") {
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
-        }
-        void tick30();
-      } else if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    };
-    document.addEventListener("visibilitychange", onVis);
-
-    return (): void => {
-      cancel = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [selectedLocationId]);
+  const inventory = useInventoryPolling(selectedLocationId);
 
   useEffect(() => {
     let cancelled = false;

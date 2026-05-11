@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AvailabilityBadge } from "@/components/menu/availability-badge";
 import { ModifierSelector } from "@/components/cart/modifier-selector";
@@ -36,6 +36,16 @@ export interface ItemDetailProps {
   inventory: InventorySnapshot;
 }
 
+function pickInitialVariationId(
+  item: WireItem,
+  inventory: InventorySnapshot,
+): string {
+  const inStock = item.variations.find(
+    (v) => inventory[v.id]?.state !== "OUT_OF_STOCK",
+  );
+  return (inStock ?? item.variations[0])?.id ?? "";
+}
+
 export function ItemDetail({
   item,
   catalog,
@@ -46,12 +56,29 @@ export function ItemDetail({
   inventory,
 }: ItemDetailProps): ReactNode {
   const initialVariation = item.variations[0];
-  const [variationId, setVariationId] = useState<string | null>(
-    initialVariation ? initialVariation.id : null,
+  const [variationId, setVariationId] = useState<string>(() =>
+    pickInitialVariationId(item, inventory),
   );
+  const [userTouchedVariation, setUserTouchedVariation] = useState(false);
   const [mods, setMods] = useState<SelectedModifier[]>([]);
   const [modErrors, setModErrors] = useState<string[]>([]);
   const addLine = useCart((s) => s.addLine);
+
+  // If the user hasn't manually changed selection AND the current selection is
+  // OOS but a fresh inventory snapshot has an in-stock alternative, switch
+  // over. Once the user clicks a radio, respect their choice.
+  useEffect(() => {
+    if (userTouchedVariation) return;
+    const current = inventory[variationId];
+    if (current?.state !== "OUT_OF_STOCK") return;
+    const next = item.variations.find(
+      (v) => inventory[v.id]?.state !== "OUT_OF_STOCK",
+    );
+    if (next && next.id !== variationId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs selection to fresh inventory; only fires when user hasn't manually picked
+      setVariationId(next.id);
+    }
+  }, [inventory, variationId, item.variations, userTouchedVariation]);
 
   const variation =
     item.variations.find((v) => v.id === variationId) ?? initialVariation;
@@ -128,6 +155,7 @@ export function ItemDetail({
                     oos ? "This option is currently out of stock." : undefined
                   }
                   onClick={() => {
+                    setUserTouchedVariation(true);
                     setVariationId(v.id);
                   }}
                 >
