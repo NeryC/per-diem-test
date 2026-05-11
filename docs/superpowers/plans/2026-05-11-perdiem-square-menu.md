@@ -282,6 +282,73 @@ EOF
 
 ---
 
+### Task 0.5b — Lock ESLint to ban `any`
+
+**Files:**
+- Create or modify: `eslint.config.mjs` (Next.js 15 ships flat config by default)
+
+- [ ] **Step 1: Edit `eslint.config.mjs`**
+
+The default config includes `next/core-web-vitals` and `next/typescript`. Append a rules block that escalates the unsafe-any family to errors:
+
+```js
+// eslint.config.mjs
+import { FlatCompat } from "@eslint/eslintrc";
+
+const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-call": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-return": "error",
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        { "ts-ignore": true, "ts-expect-error": "allow-with-description" },
+      ],
+    },
+  },
+];
+
+export default eslintConfig;
+```
+
+- [ ] **Step 2: Verify it bites**
+
+Create a scratch file with `const x: any = 1;` and run `pnpm lint`. ESLint must report an error. Delete the scratch file.
+
+- [ ] **Step 3: Verify the existing scaffolding still passes**
+
+Run: `pnpm lint`
+Expected: clean (the create-next-app output and shadcn primitives are typed; no warnings should escalate to errors).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add eslint.config.mjs
+git commit -m "$(cat <<'EOF'
+chore(tooling): enforce no-any and unsafe-any-family as errors
+
+The take-home brief forbids any, ts-ignore, and types that lie. We
+enforce that in tooling, not just convention: the no-explicit-any
+rule plus the no-unsafe-* family catches values that lose their
+type at boundaries (typically interop with untyped libraries). The
+ban-ts-comment rule lets ts-expect-error through only when an
+explanatory comment is attached, so escape hatches stay rare and
+documented.
+
+Refs: spec §1.1
+EOF
+)"
+```
+
+---
+
 ### Task 0.6 — Configure Husky, lint-staged, commitlint
 
 **Files:**
@@ -1062,6 +1129,19 @@ EOF
 // lib/square/catalog.ts
 import "server-only";
 import { unstable_cache } from "next/cache";
+import type {
+  CatalogObject,
+  CatalogObjectCategory,
+  CatalogObjectItem,
+  CatalogObjectItemVariation,
+  CatalogObjectModifier,
+  CatalogObjectModifierList,
+  CatalogItemModifierListInfo,
+  CatalogItemOptionForItem,
+  CatalogAvailabilityPeriod,
+  CategoryPathToRoot,
+  Money as SquareMoney,
+} from "square";
 import { square } from "./client";
 import { safeSquareCall, type Result } from "./errors";
 import {
@@ -1069,14 +1149,18 @@ import {
   type CatalogSnapshot,
   type Category,
   type Item,
+  type ItemModifierListInfo,
+  type ItemVariation,
+  type Modifier,
   type ModifierList,
   type AvailabilityWindow,
+  type DayOfWeek,
 } from "./schemas";
 
 const TYPES = "ITEM,CATEGORY,MODIFIER_LIST";
 
-async function listAllCatalog(): Promise<unknown[]> {
-  const all: unknown[] = [];
+async function listAllCatalog(): Promise<CatalogObject[]> {
+  const all: CatalogObject[] = [];
   let cursor: string | undefined = undefined;
   do {
     const res = await square.catalogApi.listCatalog(cursor, TYPES);
@@ -1087,160 +1171,189 @@ async function listAllCatalog(): Promise<unknown[]> {
 }
 
 function moneyFromSquare(
-  m: { amount?: bigint | number | null; currency?: string | null } | null | undefined,
+  m: SquareMoney | null | undefined,
 ): { amount: bigint; currency: string } | null {
   if (!m || m.amount == null || !m.currency) return null;
   const n = typeof m.amount === "bigint" ? m.amount : BigInt(m.amount);
   return { amount: n, currency: m.currency };
 }
 
+const NEXT_DAY: Record<DayOfWeek, DayOfWeek> = {
+  SUN: "MON",
+  MON: "TUE",
+  TUE: "WED",
+  WED: "THU",
+  THU: "FRI",
+  FRI: "SAT",
+  SAT: "SUN",
+};
+
+function isDayOfWeek(s: string): s is DayOfWeek {
+  return s === "SUN" || s === "MON" || s === "TUE" || s === "WED"
+    || s === "THU" || s === "FRI" || s === "SAT";
+}
+
 function parseAvailabilityPeriods(
-  raw: unknown,
+  raw: CatalogAvailabilityPeriod[] | undefined,
 ): AvailabilityWindow[] {
-  // Square returns "availabilityPeriods" as { startLocalTime, endLocalTime, dayOfWeek }.
-  // We split midnight-crossing windows here so the resolver stays simple.
-  if (!Array.isArray(raw)) return [];
+  if (!raw) return [];
   const out: AvailabilityWindow[] = [];
   for (const p of raw) {
-    if (
-      !p ||
-      typeof p !== "object" ||
-      typeof (p as { startLocalTime?: unknown }).startLocalTime !== "string" ||
-      typeof (p as { endLocalTime?: unknown }).endLocalTime !== "string" ||
-      typeof (p as { dayOfWeek?: unknown }).dayOfWeek !== "string"
-    ) {
-      continue;
-    }
-    const start = (p as { startLocalTime: string }).startLocalTime.slice(0, 5);
-    const end = (p as { endLocalTime: string }).endLocalTime.slice(0, 5);
-    const day = (p as { dayOfWeek: string }).dayOfWeek as
-      | "SUN"
-      | "MON"
-      | "TUE"
-      | "WED"
-      | "THU"
-      | "FRI"
-      | "SAT";
+    if (!p.startLocalTime || !p.endLocalTime || !p.dayOfWeek) continue;
+    if (!isDayOfWeek(p.dayOfWeek)) continue;
+    const start = p.startLocalTime.slice(0, 5);
+    const end = p.endLocalTime.slice(0, 5);
+    const day: DayOfWeek = p.dayOfWeek;
     if (start <= end) {
       out.push({ dayOfWeek: day, range: { startLocal: start, endLocal: end } });
     } else {
-      // Crosses midnight: split into [start..24:00] today and [00:00..end] next day
-      const next: Record<typeof day, typeof day> = {
-        SUN: "MON",
-        MON: "TUE",
-        TUE: "WED",
-        WED: "THU",
-        THU: "FRI",
-        FRI: "SAT",
-        SAT: "SUN",
-      };
-      out.push({
-        dayOfWeek: day,
-        range: { startLocal: start, endLocal: "23:59" },
-      });
-      out.push({
-        dayOfWeek: next[day],
-        range: { startLocal: "00:00", endLocal: end },
-      });
+      // Crosses midnight: split into [start..23:59] today and [00:00..end] next day
+      out.push({ dayOfWeek: day, range: { startLocal: start, endLocal: "23:59" } });
+      out.push({ dayOfWeek: NEXT_DAY[day], range: { startLocal: "00:00", endLocal: end } });
     }
   }
   return out;
 }
 
-function normalizeCatalog(objects: unknown[]): CatalogSnapshot {
+function isItemObject(o: CatalogObject): o is CatalogObjectItem {
+  return o.type === "ITEM";
+}
+function isCategoryObject(o: CatalogObject): o is CatalogObjectCategory {
+  return o.type === "CATEGORY";
+}
+function isModifierListObject(o: CatalogObject): o is CatalogObjectModifierList {
+  return o.type === "MODIFIER_LIST";
+}
+
+function normalizeVariations(
+  variations: CatalogObject[] | undefined,
+  itemId: string,
+): ItemVariation[] {
+  if (!variations) return [];
+  const out: ItemVariation[] = [];
+  for (const v of variations) {
+    if (v.type !== "ITEM_VARIATION" || !v.id) continue;
+    const data = (v as CatalogObjectItemVariation).itemVariationData;
+    if (!data?.name) continue;
+    out.push({
+      id: v.id,
+      itemId,
+      name: data.name,
+      priceMoney: moneyFromSquare(data.priceMoney),
+      ordinal: data.ordinal ?? 0,
+    });
+  }
+  return out;
+}
+
+function normalizeItemModifierListInfo(
+  raw: CatalogItemModifierListInfo[] | undefined,
+): ItemModifierListInfo[] {
+  if (!raw) return [];
+  const out: ItemModifierListInfo[] = [];
+  for (const m of raw) {
+    if (!m.modifierListId) continue;
+    out.push({
+      modifierListId: m.modifierListId,
+      enabled: m.enabled !== false,
+      minSelectedOverride: m.minSelectedModifiers ?? null,
+      maxSelectedOverride: m.maxSelectedModifiers ?? null,
+    });
+  }
+  return out;
+}
+
+function normalizeItem(o: CatalogObjectItem): Item | null {
+  if (!o.id || !o.itemData) return null;
+  const data = o.itemData;
+  const variations = normalizeVariations(data.variations, o.id);
+  if (variations.length === 0) return null;
+  // Square v2 puts category id under either categoryId or categories[0].id depending on
+  // whether the merchant has migrated to multi-category support.
+  const categoryId =
+    data.categoryId
+    ?? data.categories?.[0]?.id
+    ?? null;
+  return {
+    id: o.id,
+    name: data.name ?? "(unnamed)",
+    description: data.description ?? null,
+    imageUrl: data.imageUrl ?? null,
+    categoryId,
+    variations,
+    modifierListInfo: normalizeItemModifierListInfo(data.modifierListInfo),
+    presentAtAllLocations: o.presentAtAllLocations ?? true,
+    presentAtLocationIds: o.presentAtLocationIds ?? [],
+    absentAtLocationIds: o.absentAtLocationIds ?? [],
+  };
+}
+
+function normalizeCategory(o: CatalogObjectCategory): Category | null {
+  if (!o.id || !o.categoryData) return null;
+  const data = o.categoryData;
+  const overrides: Record<string, AvailabilityWindow[]> = {};
+  for (const ov of data.locationOverrides ?? []) {
+    if (!ov.locationId) continue;
+    overrides[ov.locationId] = parseAvailabilityPeriods(ov.availabilityPeriods);
+  }
+  return {
+    id: o.id,
+    name: data.name ?? "(unnamed)",
+    ordinal: data.ordinal ?? 0,
+    availabilityWindows: parseAvailabilityPeriods(data.availabilityPeriods),
+    locationOverrides: overrides,
+  };
+}
+
+function normalizeModifiers(
+  modifiers: CatalogObject[] | undefined,
+  modifierListId: string,
+): Modifier[] {
+  if (!modifiers) return [];
+  const out: Modifier[] = [];
+  for (const m of modifiers) {
+    if (m.type !== "MODIFIER" || !m.id) continue;
+    const data = (m as CatalogObjectModifier).modifierData;
+    if (!data?.name) continue;
+    out.push({
+      id: m.id,
+      modifierListId,
+      name: data.name,
+      priceMoney: moneyFromSquare(data.priceMoney),
+      ordinal: data.ordinal ?? 0,
+    });
+  }
+  return out;
+}
+
+function normalizeModifierList(o: CatalogObjectModifierList): ModifierList | null {
+  if (!o.id || !o.modifierListData) return null;
+  const data = o.modifierListData;
+  return {
+    id: o.id,
+    name: data.name ?? "(unnamed)",
+    selectionType: data.selectionType === "MULTIPLE" ? "MULTIPLE" : "SINGLE",
+    minSelected: data.minSelectedModifiers ?? null,
+    maxSelected: data.maxSelectedModifiers ?? null,
+    modifiers: normalizeModifiers(data.modifiers, o.id),
+  };
+}
+
+function normalizeCatalog(objects: CatalogObject[]): CatalogSnapshot {
   const items: Item[] = [];
   const categories: Category[] = [];
   const modifierLists: ModifierList[] = [];
 
   for (const obj of objects) {
-    if (!obj || typeof obj !== "object") continue;
-    const o = obj as {
-      type?: string;
-      id?: string;
-      itemData?: any;
-      categoryData?: any;
-      modifierListData?: any;
-      presentAtAllLocations?: boolean;
-      presentAtLocationIds?: string[];
-      absentAtLocationIds?: string[];
-    };
-    if (!o.id || !o.type) continue;
-
-    if (o.type === "ITEM" && o.itemData) {
-      const variations = (o.itemData.variations ?? [])
-        .map((v: any) => {
-          if (!v.id || !v.itemVariationData?.name) return null;
-          return {
-            id: v.id,
-            itemId: o.id!,
-            name: v.itemVariationData.name,
-            priceMoney: moneyFromSquare(v.itemVariationData.priceMoney),
-            ordinal: v.itemVariationData.ordinal ?? 0,
-          };
-        })
-        .filter(Boolean);
-      if (variations.length === 0) continue;
-      items.push({
-        id: o.id,
-        name: o.itemData.name ?? "(unnamed)",
-        description: o.itemData.description ?? null,
-        imageUrl: o.itemData.imageUrl ?? null,
-        categoryId: o.itemData.categoryId ?? null,
-        variations,
-        modifierListInfo: (o.itemData.modifierListInfo ?? []).map(
-          (m: any) => ({
-            modifierListId: m.modifierListId,
-            enabled: m.enabled !== false,
-            minSelectedOverride: m.minSelectedModifiers ?? null,
-            maxSelectedOverride: m.maxSelectedModifiers ?? null,
-          }),
-        ),
-        presentAtAllLocations: o.presentAtAllLocations ?? true,
-        presentAtLocationIds: o.presentAtLocationIds ?? [],
-        absentAtLocationIds: o.absentAtLocationIds ?? [],
-      });
-    } else if (o.type === "CATEGORY" && o.categoryData) {
-      const overrides: Record<string, AvailabilityWindow[]> = {};
-      const rawOverrides = o.categoryData.locationOverrides ?? [];
-      for (const ov of rawOverrides) {
-        if (!ov?.locationId) continue;
-        overrides[ov.locationId] = parseAvailabilityPeriods(
-          ov.availabilityPeriods,
-        );
-      }
-      categories.push({
-        id: o.id,
-        name: o.categoryData.name ?? "(unnamed)",
-        ordinal: o.categoryData.ordinal ?? 0,
-        availabilityWindows: parseAvailabilityPeriods(
-          o.categoryData.availabilityPeriods,
-        ),
-        locationOverrides: overrides,
-      });
-    } else if (o.type === "MODIFIER_LIST" && o.modifierListData) {
-      const mods = (o.modifierListData.modifiers ?? [])
-        .map((m: any) => {
-          if (!m.id || !m.modifierData?.name) return null;
-          return {
-            id: m.id,
-            modifierListId: o.id!,
-            name: m.modifierData.name,
-            priceMoney: moneyFromSquare(m.modifierData.priceMoney),
-            ordinal: m.modifierData.ordinal ?? 0,
-          };
-        })
-        .filter(Boolean);
-      modifierLists.push({
-        id: o.id,
-        name: o.modifierListData.name ?? "(unnamed)",
-        selectionType:
-          o.modifierListData.selectionType === "MULTIPLE"
-            ? "MULTIPLE"
-            : "SINGLE",
-        minSelected: o.modifierListData.minSelectedModifiers ?? null,
-        maxSelected: o.modifierListData.maxSelectedModifiers ?? null,
-        modifiers: mods,
-      });
+    if (isItemObject(obj)) {
+      const it = normalizeItem(obj);
+      if (it) items.push(it);
+    } else if (isCategoryObject(obj)) {
+      const cat = normalizeCategory(obj);
+      if (cat) categories.push(cat);
+    } else if (isModifierListObject(obj)) {
+      const ml = normalizeModifierList(obj);
+      if (ml) modifierLists.push(ml);
     }
   }
 
@@ -1323,6 +1436,11 @@ constraints inline, and category availability periods are pre-split
 on midnight crossings so the availability resolver does not need to
 think about that case.
 
+Type narrowing uses Square's exported CatalogObject type with
+discriminated isItemObject/isCategoryObject/isModifierListObject
+guards so every branch keeps full intellisense and TypeScript
+catches shape changes when the SDK is upgraded. No any anywhere.
+
 Money amounts are serialized as decimal strings on the JSON wire
 because bigint does not survive JSON.stringify; the client parses
 them back with BigInt() at the boundary.
@@ -1368,7 +1486,7 @@ EOF
 
 - [ ] **Step 2: Self-review the diff in the PR**
 
-Read every file changed. Verify no `any` slipped through (the catalog normalizer uses `any` intentionally on Square's side because the SDK types are loose; assert that all outputs are Zod-parsed).
+Read every file changed. Run `pnpm exec tsc --noEmit` and `grep -RIn ': any\| as any\|\bany\b' lib/ app/api/` — both must come back clean. Verify all Square responses pass through Zod parsing before reaching the wire.
 
 - [ ] **Step 3: Merge to main**
 
