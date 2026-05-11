@@ -4,8 +4,9 @@
 // from a one-shot script.
 //
 // Re-runs are safe: the script first searches for catalog items whose names
-// start with "seed:" and exits early if any are present. To re-seed, delete
-// the "seed:" items from the Square Dashboard and run again.
+// start with "seed:" and exits early if any are present. To re-seed, pass
+// --reset to batch-delete existing "seed:" objects (items, categories,
+// modifier lists) before re-creating them.
 
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -108,6 +109,36 @@ async function searchExistingItems(prefix) {
     limit: 100,
   });
   return Array.isArray(data.objects) ? data.objects : [];
+}
+
+/**
+ * Search for ALL "seed:" catalog objects (items, categories, modifier lists).
+ * @param {string} prefix
+ */
+async function searchAllSeedObjects(prefix) {
+  const data = await squareFetch("/v2/catalog/search", "POST", {
+    object_types: ["ITEM", "CATEGORY", "MODIFIER_LIST"],
+    query: {
+      prefix_query: {
+        attribute_name: "name",
+        attribute_prefix: prefix,
+      },
+    },
+    limit: 1000,
+  });
+  return Array.isArray(data.objects) ? data.objects : [];
+}
+
+/**
+ * Batch-delete catalog objects by id. Square cascades deletes to child
+ * variations and modifiers, so we only need top-level ids.
+ * @param {string[]} ids
+ */
+async function batchDeleteCatalog(ids) {
+  if (ids.length === 0) return { deleted_object_ids: [] };
+  return squareFetch("/v2/catalog/batch-delete", "POST", {
+    object_ids: ids,
+  });
 }
 
 /**
@@ -227,6 +258,12 @@ function buildCatalogObjects(primaryLocationId, multiLocation) {
     },
   });
 
+  // Square rejects batch-upserts where multiple items in the same category
+  // share the same ordinal (must be unique per category). Track a counter
+  // per categoryId so each item gets a fresh ordinal.
+  /** @type {Record<string, number>} */
+  const ordinalByCategory = {};
+
   /**
    * @param {{
    *   id: string;
@@ -247,11 +284,18 @@ function buildCatalogObjects(primaryLocationId, multiLocation) {
         priceCents: cfg.priceCents ?? 0,
       },
     ];
+    const categoryOrdinal = ordinalByCategory[cfg.categoryId] ?? 0;
+    ordinalByCategory[cfg.categoryId] = categoryOrdinal + 1;
     /** @type {Record<string, unknown>} */
     const itemData = {
       name: cfg.name,
       description: cfg.description,
-      category_id: cfg.categoryId,
+      // Square 2024-12-18 deprecated `category_id` in favor of the multi-
+      // category `categories` array and a single `reporting_category` used
+      // for UI grouping. Both reference the same temp id. Ordinals must be
+      // unique among items sharing a category, hence the per-category counter.
+      categories: [{ id: cfg.categoryId, ordinal: categoryOrdinal }],
+      reporting_category: { id: cfg.categoryId, ordinal: categoryOrdinal },
       variations: variations.map((v, idx) => ({
         type: "ITEM_VARIATION",
         id: v.id,
@@ -390,6 +434,8 @@ function buildCatalogObjects(primaryLocationId, multiLocation) {
 }
 
 async function main() {
+  const reset = process.argv.includes("--reset");
+
   console.log("Listing locations...");
   const locations = await listLocations();
   console.log(`Found ${locations.length} location(s):`);
@@ -411,16 +457,32 @@ async function main() {
   const primary = locations[0];
   const multiLocation = locations.length >= 2;
 
-  console.log('Checking for existing "seed:" items...');
-  const existing = await searchExistingItems("seed:");
-  if (existing.length > 0) {
-    console.log(
-      `Sandbox already has ${existing.length} seeded item(s). Skipping catalog creation.`,
-    );
-    console.log(
-      'Tip: delete the "seed:" items from the Dashboard (or use a fresh sandbox) to re-seed.',
-    );
-    return;
+  if (reset) {
+    console.log('Reset requested. Searching for existing "seed:" objects...');
+    const seedObjects = await searchAllSeedObjects("seed:");
+    if (seedObjects.length === 0) {
+      console.log("No existing seed objects to delete.");
+    } else {
+      const ids = seedObjects.map((o) => o.id).filter(Boolean);
+      console.log(`Deleting ${ids.length} existing seed objects...`);
+      const delResult = await batchDeleteCatalog(ids);
+      const deleted = Array.isArray(delResult.deleted_object_ids)
+        ? delResult.deleted_object_ids
+        : [];
+      console.log(`Deleted ${deleted.length} existing seed objects (including cascaded children).`);
+    }
+  } else {
+    console.log('Checking for existing "seed:" items...');
+    const existing = await searchExistingItems("seed:");
+    if (existing.length > 0) {
+      console.log(
+        `Sandbox already has ${existing.length} seeded item(s). Skipping catalog creation.`,
+      );
+      console.log(
+        'Tip: re-run with --reset to delete and recreate the "seed:" objects.',
+      );
+      return;
+    }
   }
 
   console.log("Creating catalog objects...");
