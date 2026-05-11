@@ -1,3 +1,4 @@
+import { readCache, writeCache, type CachedEntry } from "./offline-cache";
 import type {
   WireCatalog,
   WireCategory,
@@ -11,18 +12,74 @@ import type {
  * isItemAtLocation encodes Square's three-flag presence contract
  * (presentAtAllLocations, presentAtLocationIds, absentAtLocationIds)
  * exactly once so every UI surface filters consistently.
+ *
+ * fetchLocations and fetchCatalog use a stale-while-revalidate pattern:
+ * a successful response refreshes the localStorage cache; a failed one
+ * falls back to the cache if present, and only rethrows when there is
+ * nothing to serve. Inventory is deliberately NOT cached — stock
+ * freshness matters more than offline availability, and caching it
+ * would lie about what is buyable right now.
  */
 
+const LOCATIONS_CACHE_KEY = "perdiem-locations-cache-v1";
+const CATALOG_CACHE_KEY = "perdiem-catalog-cache-v1";
+
 export async function fetchLocations(): Promise<WireLocation[]> {
-  const res = await fetch("/api/locations", { cache: "no-store" });
-  if (!res.ok) throw new Error(`locations: ${res.status}`);
-  return (await res.json()) as WireLocation[];
+  try {
+    const res = await fetch("/api/locations", { cache: "no-store" });
+    if (!res.ok) throw new Error(`locations: ${res.status}`);
+    const data = (await res.json()) as WireLocation[];
+    writeCache(LOCATIONS_CACHE_KEY, data);
+    return data;
+  } catch (err) {
+    const cached = readCache<WireLocation[]>(LOCATIONS_CACHE_KEY);
+    if (cached) return cached.value;
+    throw err;
+  }
 }
 
 export async function fetchCatalog(): Promise<WireCatalog> {
-  const res = await fetch("/api/catalog", { cache: "no-store" });
-  if (!res.ok) throw new Error(`catalog: ${res.status}`);
-  return (await res.json()) as WireCatalog;
+  try {
+    const res = await fetch("/api/catalog", { cache: "no-store" });
+    if (!res.ok) throw new Error(`catalog: ${res.status}`);
+    const data = (await res.json()) as WireCatalog;
+    writeCache(CATALOG_CACHE_KEY, data);
+    return data;
+  } catch (err) {
+    const cached = readCache<WireCatalog>(CATALOG_CACHE_KEY);
+    if (cached) return cached.value;
+    throw err;
+  }
+}
+
+/**
+ * Synchronous cache reads for seeding initial UI state. Both return
+ * `null` on SSR or a cold cache so callers can render a skeleton.
+ */
+export function getCachedLocations(): WireLocation[] | null {
+  const entry = readCache<WireLocation[]>(LOCATIONS_CACHE_KEY);
+  return entry ? entry.value : null;
+}
+
+export function getCachedCatalog(): WireCatalog | null {
+  const entry = readCache<WireCatalog>(CATALOG_CACHE_KEY);
+  return entry ? entry.value : null;
+}
+
+export interface CacheMeta {
+  savedAt: number;
+}
+
+function metaOf<T>(entry: CachedEntry<T> | null): CacheMeta | null {
+  return entry ? { savedAt: entry.savedAt } : null;
+}
+
+export function getCachedLocationsMeta(): CacheMeta | null {
+  return metaOf(readCache<WireLocation[]>(LOCATIONS_CACHE_KEY));
+}
+
+export function getCachedCatalogMeta(): CacheMeta | null {
+  return metaOf(readCache<WireCatalog>(CATALOG_CACHE_KEY));
 }
 
 /**

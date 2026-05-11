@@ -21,6 +21,9 @@ import { useCart } from "@/lib/cart/store";
 import {
   fetchCatalog,
   fetchLocations,
+  getCachedCatalog,
+  getCachedCatalogMeta,
+  getCachedLocations,
   groupItemsByCategory,
   isItemAtLocation,
   type CategoryGroup,
@@ -60,6 +63,40 @@ function LoadingFallback(): ReactNode {
   );
 }
 
+function formatSavedAgo(savedAt: number): string {
+  const diffMs = Math.max(0, Date.now() - savedAt);
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "less than a minute ago";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${String(minutes)} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "1 hour ago";
+  return `${String(hours)} hours ago`;
+}
+
+function StaleCacheBanner({
+  savedAt,
+  onRetry,
+}: {
+  savedAt: number;
+  onRetry: () => void;
+}): ReactNode {
+  return (
+    <div
+      role="status"
+      className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+    >
+      <span>
+        Showing cached menu (saved {formatSavedAgo(savedAt)}). Latest refresh
+        failed.
+      </span>
+      <Button size="sm" variant="outline" onClick={onRetry}>
+        Retry
+      </Button>
+    </div>
+  );
+}
+
 export default function MenuHomePage(): ReactNode {
   const { selectedLocationId, setSelectedLocationId, hasMounted } =
     useSelectedLocation();
@@ -89,13 +126,45 @@ export default function MenuHomePage(): ReactNode {
     setPendingLocation(null);
   };
   type FetchState =
-    | { status: "loading"; data: MenuData | null; error: null }
-    | { status: "ready"; data: MenuData; error: null }
-    | { status: "error"; data: MenuData | null; error: Error };
-  const [fetchState, setFetchState] = useState<FetchState>({
-    status: "loading",
-    data: null,
-    error: null,
+    | {
+        status: "loading";
+        data: MenuData | null;
+        error: null;
+        cacheSavedAt: number | null;
+      }
+    | {
+        status: "ready";
+        data: MenuData;
+        error: null;
+        cacheSavedAt: number | null;
+      }
+    | {
+        status: "error";
+        data: MenuData | null;
+        error: Error;
+        cacheSavedAt: number | null;
+      };
+  // Seed from the offline cache so a returning user (or one without
+  // network) sees the menu paint immediately. The background fetch
+  // below will replace this with fresh data when it lands.
+  const [fetchState, setFetchState] = useState<FetchState>(() => {
+    const cachedLocations = getCachedLocations();
+    const cachedCatalog = getCachedCatalog();
+    const meta = getCachedCatalogMeta();
+    if (cachedLocations && cachedCatalog) {
+      return {
+        status: "ready",
+        data: { locations: cachedLocations, catalog: cachedCatalog },
+        error: null,
+        cacheSavedAt: meta ? meta.savedAt : null,
+      };
+    }
+    return {
+      status: "loading",
+      data: null,
+      error: null,
+      cacheSavedAt: meta ? meta.savedAt : null,
+    };
   });
   const [retryCount, retry] = useReducer((c: number) => c + 1, 0);
   const inventory = useInventoryPolling(selectedLocationId);
@@ -105,10 +174,12 @@ export default function MenuHomePage(): ReactNode {
     Promise.all([fetchLocations(), fetchCatalog()])
       .then(([locations, catalog]) => {
         if (cancelled) return;
+        const meta = getCachedCatalogMeta();
         setFetchState({
           status: "ready",
           data: { locations, catalog },
           error: null,
+          cacheSavedAt: meta ? meta.savedAt : Date.now(),
         });
       })
       .catch((err: unknown) => {
@@ -117,6 +188,7 @@ export default function MenuHomePage(): ReactNode {
           status: "error",
           data: prev.data,
           error: err instanceof Error ? err : new Error(String(err)),
+          cacheSavedAt: prev.cacheSavedAt,
         }));
       });
     return (): void => {
@@ -127,6 +199,9 @@ export default function MenuHomePage(): ReactNode {
   const data = fetchState.data;
   const loading = fetchState.status === "loading";
   const error = fetchState.error;
+  const showingStale =
+    fetchState.status === "error" && fetchState.data !== null;
+  const cacheSavedAt = fetchState.cacheSavedAt;
 
   // Default to the first active location once locations load and we have
   // not yet hydrated a persisted choice from localStorage.
@@ -197,9 +272,12 @@ export default function MenuHomePage(): ReactNode {
 
   return (
     <>
+      {showingStale && cacheSavedAt !== null ? (
+        <StaleCacheBanner savedAt={cacheSavedAt} onRetry={retry} />
+      ) : null}
       <DataState<MenuData>
         loading={loading}
-        error={error}
+        error={showingStale ? null : error}
         data={data}
         isEmpty={(d) => d.locations.length === 0}
         loadingFallback={<LoadingFallback />}

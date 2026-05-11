@@ -6,7 +6,12 @@ import type { ReactNode } from "react";
 import { DataState } from "@/components/data-state";
 import { ItemDetail } from "@/components/menu/item-detail";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchCatalog, fetchLocations } from "@/lib/menu";
+import {
+  fetchCatalog,
+  fetchLocations,
+  getCachedCatalog,
+  getCachedLocations,
+} from "@/lib/menu";
 import {
   resolveAvailability,
   type AvailabilityState,
@@ -60,10 +65,20 @@ export default function ItemPage({ params }: PageProps): ReactNode {
     | { status: "loading"; data: DetailData | null; error: null }
     | { status: "ready"; data: DetailData; error: null }
     | { status: "error"; data: DetailData | null; error: Error };
-  const [state, setState] = useState<FetchState>({
-    status: "loading",
-    data: null,
-    error: null,
+  // Seed from the offline cache so the item paints immediately on a
+  // refresh / offline visit. The background fetch revalidates below.
+  const [state, setState] = useState<FetchState>(() => {
+    const cachedCatalog = getCachedCatalog();
+    const cachedLocations = getCachedLocations();
+    if (cachedCatalog && cachedLocations) {
+      const item = cachedCatalog.items.find((it) => it.id === id) ?? null;
+      return {
+        status: "ready",
+        data: { item, catalog: cachedCatalog, locations: cachedLocations },
+        error: null,
+      };
+    }
+    return { status: "loading", data: null, error: null };
   });
   const [retryCount, retry] = useReducer((c: number) => c + 1, 0);
   const inventory = useInventoryPolling(selectedLocationId);

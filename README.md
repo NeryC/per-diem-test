@@ -110,6 +110,26 @@ CountState>` to consumers.
   the _Add to cart_ button reads _"Out of stock"_ when nothing in the
   item is sellable.
 
+### Offline cache
+
+- `lib/offline-cache.ts` is an SSR-safe, version-keyed wrapper around
+  `localStorage`. Reads return `null` when storage is unavailable
+  (server, private mode, quota); writes are silent no-ops in the same
+  conditions. Quota or parse errors clear the bad key instead of
+  throwing.
+- `fetchCatalog` and `fetchLocations` in `lib/menu.ts` follow a
+  stale-while-revalidate pattern: every successful response refreshes
+  the cache, and a failed one falls back to the cached value if one
+  exists. They only rethrow when there is nothing to serve.
+- The menu page (`app/(menu)/page.tsx`) and the item detail page
+  (`app/items/[id]/page.tsx`) seed their initial state from the
+  cached values synchronously, so a returning user — or one without
+  network — sees the menu paint instantly. A small amber banner shows
+  on the menu when the background refresh fails so the user knows
+  they are looking at stale data and can retry.
+- Inventory is **deliberately not cached.** Caching stock would lie
+  about what is buyable right now; the 30 s poll stays live.
+
 ---
 
 ## Time simulation
@@ -136,8 +156,16 @@ in both NY and LA.
   bigint money math, snapshotted cart lines, and one Conventional-
   Commit stage per feature so every stage is independently shippable
   if the next one fell over.
-- **No service worker / offline cache.** Out of scope; documented as
-  a next-iteration item.
+- **localStorage SWR, not a service worker.** Catalog + locations are
+  cached in `localStorage` (`lib/offline-cache.ts`) with a versioned
+  key and a stale-while-revalidate fetcher. The menu paints
+  immediately from cache on a refresh / offline visit and a banner
+  surfaces when the background revalidate fails. A service worker
+  would be the right call if we needed asset caching too, but for the
+  spec's scope localStorage is simpler and avoids the SW lifecycle.
+- **Inventory is intentionally NOT cached offline.** Stock changes by
+  the minute; serving a stale snapshot would lie about what is
+  buyable. Inventory keeps its 30 s live poll.
 - **5-minute catalog cache.** Trades freshness against sandbox
   rate-limit safety. Inventory is **not** cached — it polls live.
 - **Inventory is eventually consistent.** The sandbox is occasionally
@@ -153,21 +181,22 @@ in both NY and LA.
 
 ## Bonus status
 
-| Bonus                    | Status  | Notes                                                                                      |
-| ------------------------ | ------- | ------------------------------------------------------------------------------------------ |
-| Time-of-day availability | Done    | Pure resolver, 11 spec tests, DST forward + backward + midnight-crossing, `?at=` simulator |
-| Search                   | Done    | Diacritic-insensitive, multi-token AND, `/` keyboard shortcut, debounced                   |
-| Modifiers                | Done    | `selection_type` + `min`/`max` + per-item overrides, snapshotted into cart at add time     |
-| Cart                     | Done    | Zustand + `localStorage`, `bigint` money, location-scoped with switch dialog               |
-| Out-of-stock (Inventory) | Done    | 30-s polling, visibility-aware, OOS variation disabling, auto-select first in-stock        |
-| Offline-friendly         | Skipped | Service worker / catalog offline cache — documented as next iteration                      |
+| Bonus                    | Status | Notes                                                                                      |
+| ------------------------ | ------ | ------------------------------------------------------------------------------------------ |
+| Time-of-day availability | Done   | Pure resolver, 11 spec tests, DST forward + backward + midnight-crossing, `?at=` simulator |
+| Search                   | Done   | Diacritic-insensitive, multi-token AND, `/` keyboard shortcut, debounced                   |
+| Modifiers                | Done   | `selection_type` + `min`/`max` + per-item overrides, snapshotted into cart at add time     |
+| Cart                     | Done   | Zustand + `localStorage`, `bigint` money, location-scoped with switch dialog               |
+| Out-of-stock (Inventory) | Done   | 30-s polling, visibility-aware, OOS variation disabling, auto-select first in-stock        |
+| Offline-friendly         | Done   | localStorage stale-while-revalidate of catalog + locations, stale banner on refresh fail   |
 
 ---
 
 ## What I'd build next with another week
 
 - Real Square OAuth flow for production deployments.
-- Service worker + offline catalog cache.
+- Service worker for asset caching (catalog + locations already cache
+  to localStorage today).
 - Order submission with the Square Payments API.
 - Component test coverage beyond the pure modules (currently:
   resolver, zoned helpers, money, cart-selectors, cart-store,
@@ -186,7 +215,7 @@ in both NY and LA.
 pnpm test
 ```
 
-Currently 50 tests across:
+Currently 55 tests across:
 
 - `tests/availability.test.ts` — resolver state machine, 11 cases
 - `tests/zoned.test.ts` — wall-clock math, DST, midnight crossings
@@ -195,6 +224,7 @@ Currently 50 tests across:
 - `tests/cart-store.test.ts` — store actions, location guard, persistence
 - `tests/square-errors.test.ts` — Square SDK error normalization
 - `tests/search.test.ts` — diacritic-insensitive tokenized matching
+- `tests/offline-cache.test.ts` — SSR-safe localStorage round-trip, corruption recovery
 
 ---
 
