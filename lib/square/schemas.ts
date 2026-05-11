@@ -115,16 +115,29 @@ export const CatalogSnapshotSchema = z.object({
 });
 export type CatalogSnapshot = z.infer<typeof CatalogSnapshotSchema>;
 
+export const InventoryStateSchema = z.enum([
+  "IN_STOCK",
+  "OUT_OF_STOCK",
+  "OTHER",
+]);
+export type InventoryState = z.infer<typeof InventoryStateSchema>;
+
+/**
+ * Per-variation inventory snapshot. The contract on the wire (and back into
+ * the cache layer) is a flat record keyed by variation id with the resolved
+ * state and a numeric quantity, so the UI never needs to think about
+ * Square's wider InventoryState enum or its decimal-string quantities.
+ *
+ * Refs: spec §6
+ */
 export const InventoryEntrySchema = z.object({
-  variationId: z.string().min(1),
-  locationId: z.string().min(1),
-  state: z.enum(["IN_STOCK", "OUT_OF_STOCK", "OTHER"]),
-  quantity: z.string(),
+  state: InventoryStateSchema,
+  quantity: z.number(),
 });
 export type InventoryEntry = z.infer<typeof InventoryEntrySchema>;
 
 export const InventoryByVariationSchema = z.record(
   z.string(),
-  z.array(InventoryEntrySchema),
+  InventoryEntrySchema,
 );
 export type InventoryByVariation = z.infer<typeof InventoryByVariationSchema>;
