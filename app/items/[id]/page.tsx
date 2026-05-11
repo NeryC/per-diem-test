@@ -94,6 +94,7 @@ export default function ItemPage({ params }: PageProps): ReactNode {
   const resolved = useMemo<{
     availability: AvailabilityState;
     timezone: string;
+    currency: string;
   } | null>(() => {
     const data = state.data;
     if (!data || !data.item || !selectedLocationId) return null;
@@ -113,7 +114,11 @@ export default function ItemPage({ params }: PageProps): ReactNode {
       locationTimezone: location.timezone,
       now,
     });
-    return { availability, timezone: location.timezone };
+    return {
+      availability,
+      timezone: location.timezone,
+      currency: location.currency,
+    };
   }, [state.data, selectedLocationId, now]);
 
   if (!hasMounted) return null;
@@ -136,8 +141,11 @@ export default function ItemPage({ params }: PageProps): ReactNode {
             </Link>
             <ItemDetail
               item={d.item}
+              catalog={d.catalog}
               availability={resolved?.availability ?? { kind: "available" }}
+              locationId={selectedLocationId ?? ""}
               locationTimezone={resolved?.timezone ?? "UTC"}
+              currency={resolved?.currency ?? "USD"}
             />
           </div>
         ) : (

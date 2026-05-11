@@ -1,44 +1,75 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { AvailabilityBadge } from "@/components/menu/availability-badge";
+import { ModifierSelector } from "@/components/cart/modifier-selector";
 import { Button } from "@/components/ui/button";
-import { formatMoney, parseMoney } from "@/lib/money";
+import { useCart } from "@/lib/cart/store";
+import type { SelectedModifier } from "@/lib/cart/types";
+import { addMoney, formatMoney, parseMoney } from "@/lib/money";
 import type { AvailabilityState } from "@/lib/square/availability";
-import type { WireItem } from "@/lib/types";
-
-export interface ItemDetailProps {
-  item: WireItem;
-  availability: AvailabilityState;
-  locationTimezone: string;
-}
+import type { WireCatalog, WireItem } from "@/lib/types";
 
 /**
  * ItemDetail
  *
- * Variation selector previews price per option because that's what guests
- * need before deciding. The "Add to cart" button is intentionally disabled
- * here; cart wiring lights up in stage 5.
+ * Add-to-cart is gated on three conditions in one place: availability
+ * is 'available', modifier validation has no errors, and the selected
+ * variation has a price. The button label switches to a contextual
+ * 'Not available right now' so the user gets feedback that matches
+ * the badge.
  *
- * Refs: spec §2 core requirement 5
+ * Refs: spec §4.2, §4.5
  */
+export interface ItemDetailProps {
+  item: WireItem;
+  catalog: WireCatalog;
+  availability: AvailabilityState;
+  locationId: string;
+  locationTimezone: string;
+  /** Currency from the resolved location (fallback "USD"). */
+  currency: string;
+}
+
 export function ItemDetail({
   item,
+  catalog,
   availability,
+  locationId,
   locationTimezone,
+  currency,
 }: ItemDetailProps): ReactNode {
-  const first = item.variations[0];
+  const initialVariation = item.variations[0];
   const [variationId, setVariationId] = useState<string | null>(
-    first ? first.id : null,
+    initialVariation ? initialVariation.id : null,
   );
+  const [mods, setMods] = useState<SelectedModifier[]>([]);
+  const [modErrors, setModErrors] = useState<string[]>([]);
+  const addLine = useCart((s) => s.addLine);
 
-  const selected = item.variations.find((v) => v.id === variationId) ?? first;
-  const priceLabel =
-    selected && selected.priceMoney
-      ? formatMoney(parseMoney(selected.priceMoney))
-      : null;
+  const variation =
+    item.variations.find((v) => v.id === variationId) ?? initialVariation;
+
+  const totalPerUnit = useMemo(() => {
+    if (!variation || !variation.priceMoney) return null;
+    let total = parseMoney(variation.priceMoney);
+    for (const m of mods) total = addMoney(total, m.priceMoney);
+    return total;
+  }, [variation, mods]);
+
+  if (!variation) {
+    return (
+      <p className="text-muted-foreground">
+        This item has no variations to order.
+      </p>
+    );
+  }
+
+  const blocked = availability.kind !== "available";
+  const canAdd =
+    !blocked && modErrors.length === 0 && variation.priceMoney !== null;
 
   return (
     <article className="flex flex-col gap-6">
@@ -83,7 +114,9 @@ export function ItemDetail({
                   variant={checked ? "default" : "outline"}
                   role="radio"
                   aria-checked={checked}
-                  onClick={() => setVariationId(v.id)}
+                  onClick={() => {
+                    setVariationId(v.id);
+                  }}
                 >
                   <span>{v.name || "Default"}</span>
                   {v.priceMoney ? (
@@ -98,9 +131,46 @@ export function ItemDetail({
         </fieldset>
       ) : null}
 
-      <div className="flex items-center justify-between gap-4 border-t pt-4">
-        <div className="text-lg font-semibold">{priceLabel ?? "—"}</div>
-        <Button disabled>Add to cart (coming next stage)</Button>
+      <ModifierSelector
+        item={item}
+        modifierLists={catalog.modifierLists}
+        currency={currency}
+        onChange={(selected, errors) => {
+          setMods(selected);
+          setModErrors(errors);
+        }}
+      />
+
+      <div className="flex flex-col gap-2 border-t pt-4">
+        {totalPerUnit ? (
+          <p className="text-2xl font-semibold">{formatMoney(totalPerUnit)}</p>
+        ) : (
+          <p className="text-muted-foreground text-lg">—</p>
+        )}
+        {modErrors.map((e) => (
+          <p key={e} className="text-sm text-amber-700">
+            {e}
+          </p>
+        ))}
+        <Button
+          className="w-full"
+          disabled={!canAdd}
+          onClick={() => {
+            if (!variation.priceMoney) return;
+            addLine({
+              itemId: item.id,
+              variationId: variation.id,
+              itemName: item.name,
+              variationName: variation.name,
+              basePriceMoney: parseMoney(variation.priceMoney),
+              modifiers: mods,
+              qty: 1,
+              locationId,
+            });
+          }}
+        >
+          {blocked ? "Not available right now" : "Add to cart"}
+        </Button>
       </div>
     </article>
   );
