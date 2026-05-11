@@ -12,11 +12,24 @@ describe("matchesQuery", () => {
   it("returns true when query is empty", () => {
     expect(matchesQuery(["anything"], "")).toBe(true);
   });
+  it("returns true when query is whitespace only", () => {
+    expect(matchesQuery(["anything"], "   ")).toBe(true);
+  });
   it("matches case- and accent-insensitively across parts", () => {
-    expect(matchesQuery(["Latte", "Caffè con leche"], "cafe con")).toBe(true);
+    expect(matchesQuery(["Café latte", "with oat milk"], "cafe oat")).toBe(
+      true,
+    );
     expect(matchesQuery(["Latte", null], "lAtTe")).toBe(true);
   });
-  it("returns false on no match", () => {
+  it("matches when every token appears somewhere in the joined haystack", () => {
+    expect(
+      matchesQuery(["Iced latte", "with caramel and oat milk"], "latte oat"),
+    ).toBe(true);
+  });
+  it("returns false when at least one token is missing", () => {
+    expect(matchesQuery(["Latte"], "latte donut")).toBe(false);
+  });
+  it("returns false on full no-match", () => {
     expect(matchesQuery(["Latte"], "donut")).toBe(false);
   });
 });

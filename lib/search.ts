@@ -3,7 +3,6 @@ export function normalize(s: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
-    .replace(/([a-z])\1+/g, "$1")
     .trim();
 }
 
@@ -16,10 +15,9 @@ export function matchesQuery(
     .split(/\s+/)
     .filter((t) => t.length > 0);
   if (tokens.length === 0) return true;
-  const normalizedParts = haystackParts
-    .filter((p): p is string => p !== null)
-    .map((p) => normalize(p));
-  return tokens.every((tok) =>
-    normalizedParts.some((part) => part.includes(tok)),
-  );
+  const haystack = haystackParts
+    .filter((p): p is string => p !== null && p !== undefined)
+    .map(normalize)
+    .join(" ");
+  return tokens.every((t) => haystack.includes(t));
 }
