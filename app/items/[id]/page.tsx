@@ -137,7 +137,10 @@ export default function ItemPage({ params }: PageProps): ReactNode {
     >
       {(d) =>
         d.item ? (
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
+          <main
+            id="main"
+            className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6"
+          >
             <Link className="text-sm underline" href="/">
               Back to menu
             </Link>
@@ -150,7 +153,7 @@ export default function ItemPage({ params }: PageProps): ReactNode {
               currency={resolved?.currency ?? "USD"}
               inventory={inventory}
             />
-          </div>
+          </main>
         ) : (
           <NotFound />
         )

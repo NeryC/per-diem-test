@@ -11,13 +11,15 @@ export default function MenuLayout({
     <>
       <TimeSimulatorBanner />
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-6">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold tracking-tight">
             Per Diem Menu
           </h1>
           <CartDrawer />
         </header>
-        {children}
+        <main id="main" className="flex flex-1 flex-col gap-6">
+          {children}
+        </main>
       </div>
     </>
   );
