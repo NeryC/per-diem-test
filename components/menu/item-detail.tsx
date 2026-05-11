@@ -8,6 +8,7 @@ import { ModifierSelector } from "@/components/cart/modifier-selector";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart/store";
 import type { SelectedModifier } from "@/lib/cart/types";
+import type { InventorySnapshot } from "@/lib/menu";
 import { addMoney, formatMoney, parseMoney } from "@/lib/money";
 import type { AvailabilityState } from "@/lib/square/availability";
 import type { WireCatalog, WireItem } from "@/lib/types";
@@ -31,6 +32,8 @@ export interface ItemDetailProps {
   locationTimezone: string;
   /** Currency from the resolved location (fallback "USD"). */
   currency: string;
+  /** Per-variation inventory snapshot for this location. */
+  inventory: InventorySnapshot;
 }
 
 export function ItemDetail({
@@ -40,6 +43,7 @@ export function ItemDetail({
   locationId,
   locationTimezone,
   currency,
+  inventory,
 }: ItemDetailProps): ReactNode {
   const initialVariation = item.variations[0];
   const [variationId, setVariationId] = useState<string | null>(
@@ -68,8 +72,12 @@ export function ItemDetail({
   }
 
   const blocked = availability.kind !== "available";
+  const variationIsOOS = inventory[variation.id]?.state === "OUT_OF_STOCK";
   const canAdd =
-    !blocked && modErrors.length === 0 && variation.priceMoney !== null;
+    !blocked &&
+    !variationIsOOS &&
+    modErrors.length === 0 &&
+    variation.priceMoney !== null;
 
   return (
     <article className="flex flex-col gap-6">
@@ -107,6 +115,7 @@ export function ItemDetail({
           <div role="radiogroup" className="flex flex-wrap gap-2">
             {item.variations.map((v) => {
               const checked = v.id === variationId;
+              const oos = inventory[v.id]?.state === "OUT_OF_STOCK";
               return (
                 <Button
                   key={v.id}
@@ -114,11 +123,18 @@ export function ItemDetail({
                   variant={checked ? "default" : "outline"}
                   role="radio"
                   aria-checked={checked}
+                  disabled={oos}
+                  title={
+                    oos ? "This option is currently out of stock." : undefined
+                  }
                   onClick={() => {
                     setVariationId(v.id);
                   }}
                 >
                   <span>{v.name || "Default"}</span>
+                  {oos ? (
+                    <span className="ml-1 opacity-70">(Out of stock)</span>
+                  ) : null}
                   {v.priceMoney ? (
                     <span className="ml-2 opacity-80">
                       {formatMoney(parseMoney(v.priceMoney))}
@@ -155,6 +171,11 @@ export function ItemDetail({
         <Button
           className="w-full"
           disabled={!canAdd}
+          title={
+            variationIsOOS && !blocked
+              ? "This option is currently out of stock."
+              : undefined
+          }
           onClick={() => {
             if (!variation.priceMoney) return;
             addLine({
@@ -169,7 +190,11 @@ export function ItemDetail({
             });
           }}
         >
-          {blocked ? "Not available right now" : "Add to cart"}
+          {blocked
+            ? "Not available right now"
+            : variationIsOOS
+              ? "Out of stock"
+              : "Add to cart"}
         </Button>
       </div>
     </article>

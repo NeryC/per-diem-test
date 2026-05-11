@@ -27,6 +27,30 @@ export async function fetchCatalog(): Promise<WireCatalog> {
   return (await res.json()) as WireCatalog;
 }
 
+/**
+ * Inventory snapshot keyed by variation id. `OTHER` covers Square states
+ * the proxy could not collapse (e.g. SOLD, RESERVED_FOR_SALE) and is
+ * treated by the UI as "untracked / assume available".
+ *
+ * Refs: spec §6
+ */
+export interface InventoryEntry {
+  state: "IN_STOCK" | "OUT_OF_STOCK" | "OTHER";
+  quantity: number;
+}
+export type InventorySnapshot = Record<string, InventoryEntry>;
+
+export async function fetchInventory(
+  locationId: string,
+): Promise<InventorySnapshot> {
+  const res = await fetch(
+    `/api/inventory?locationId=${encodeURIComponent(locationId)}`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) throw new Error(`inventory: ${res.status}`);
+  return (await res.json()) as InventorySnapshot;
+}
+
 export function isItemAtLocation(item: WireItem, locationId: string): boolean {
   if (item.absentAtLocationIds.includes(locationId)) return false;
   if (item.presentAtAllLocations) return true;

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { ItemCard } from "@/components/menu/item-card";
-import type { CategoryGroup } from "@/lib/menu";
+import type { CategoryGroup, InventorySnapshot } from "@/lib/menu";
 import type { AvailabilityState } from "@/lib/square/availability";
 
 export interface MenuListProps {
@@ -10,6 +10,7 @@ export interface MenuListProps {
   availabilityById: Map<string, AvailabilityState>;
   locationTimezone: string;
   hideUnavailable: boolean;
+  inventory: InventorySnapshot;
 }
 
 /**
@@ -25,6 +26,7 @@ export function MenuList({
   availabilityById,
   locationTimezone,
   hideUnavailable,
+  inventory,
 }: MenuListProps): ReactNode {
   return (
     <div className="flex flex-col gap-8">
@@ -52,6 +54,7 @@ export function MenuList({
                     item={item}
                     availability={availability}
                     locationTimezone={locationTimezone}
+                    inventory={inventory}
                   />
                 );
               })}

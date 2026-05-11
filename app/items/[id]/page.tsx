@@ -6,7 +6,12 @@ import type { ReactNode } from "react";
 import { DataState } from "@/components/data-state";
 import { ItemDetail } from "@/components/menu/item-detail";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchCatalog, fetchLocations } from "@/lib/menu";
+import {
+  fetchCatalog,
+  fetchInventory,
+  fetchLocations,
+  type InventorySnapshot,
+} from "@/lib/menu";
 import {
   resolveAvailability,
   type AvailabilityState,
@@ -65,6 +70,62 @@ export default function ItemPage({ params }: PageProps): ReactNode {
     error: null,
   });
   const [tick, setTick] = useState(0);
+  const [inventory, setInventory] = useState<InventorySnapshot>({});
+
+  // Visibility-aware inventory polling, mirroring the menu page. A failed
+  // refetch keeps the last good snapshot so the variation radios don't
+  // flicker between disabled and enabled on transient network errors.
+  // Refs: spec §6.1
+  useEffect(() => {
+    if (!selectedLocationId) return;
+    let cancel = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const schedule = (): void => {
+      if (cancel) return;
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
+      timer = setTimeout(() => {
+        void tick30();
+      }, 30_000);
+    };
+
+    const tick30 = async (): Promise<void> => {
+      try {
+        const inv = await fetchInventory(selectedLocationId);
+        if (!cancel) setInventory(inv);
+      } catch {
+        // Swallow — preserve last good inventory.
+      }
+      schedule();
+    };
+
+    void tick30();
+
+    const onVis = (): void => {
+      if (document.visibilityState === "visible") {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        void tick30();
+      } else if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+
+    return (): void => {
+      cancel = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [selectedLocationId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +207,7 @@ export default function ItemPage({ params }: PageProps): ReactNode {
               locationId={selectedLocationId ?? ""}
               locationTimezone={resolved?.timezone ?? "UTC"}
               currency={resolved?.currency ?? "USD"}
+              inventory={inventory}
             />
           </div>
         ) : (
