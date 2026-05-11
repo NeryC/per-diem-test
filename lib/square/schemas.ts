@@ -86,6 +86,7 @@ export const ItemSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
   description: z.string().nullable(),
+  imageUrl: z.string().url().nullable(),
   categoryId: z.string().nullable(),
   variations: z.array(ItemVariationSchema),
   modifierListInfo: z.array(ItemModifierListInfoSchema),

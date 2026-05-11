@@ -50,6 +50,11 @@ function isModifierObject(
 ): obj is Square.CatalogObject.Modifier {
   return obj.type === "MODIFIER";
 }
+function isImageObject(
+  obj: Square.CatalogObject,
+): obj is Square.CatalogObject.Image {
+  return obj.type === "IMAGE";
+}
 
 /** Square Money -> our Money. Returns null for unset prices (variable pricing). */
 function moneyFromSquare(m: Square.Money | undefined | null): Money | null {
@@ -179,16 +184,32 @@ function normalizeItemModifierListInfo(
   }));
 }
 
-function normalizeItem(obj: Square.CatalogObject.Item): Item | null {
+function normalizeItem(
+  obj: Square.CatalogObject.Item,
+  imagesById: ReadonlyMap<string, string>,
+): Item | null {
   const data = obj.itemData;
   if (!data) return null;
   // Prefer the modern `categories[0]` then fall back to the deprecated
   // `categoryId` field — both still appear in v44 sandbox responses.
   const firstCategory = data.categories?.[0]?.id ?? null;
+  // Square stores images as separate top-level CatalogObjects of type IMAGE,
+  // referenced from items by `itemData.imageIds`. Resolve the first id whose
+  // image object is present in this snapshot; otherwise emit null and let
+  // the UI fallback take over.
+  const imageUrl = ((): string | null => {
+    const ids = data.imageIds ?? [];
+    for (const id of ids) {
+      const url = imagesById.get(id);
+      if (url) return url;
+    }
+    return null;
+  })();
   return {
     id: obj.id,
     name: data.name ?? "",
     description: data.description ?? null,
+    imageUrl,
     categoryId: firstCategory ?? data.categoryId ?? null,
     variations: normalizeVariations(data.variations),
     modifierListInfo: normalizeItemModifierListInfo(data.modifierListInfo),
@@ -284,7 +305,7 @@ async function listAllCatalog(): Promise<Square.CatalogObject[]> {
   // Request every type we care about plus AVAILABILITY_PERIOD so categories
   // can resolve their availability window references in one round trip.
   const page = await client.catalog.list({
-    types: "ITEM,CATEGORY,MODIFIER_LIST,AVAILABILITY_PERIOD",
+    types: "ITEM,CATEGORY,MODIFIER_LIST,AVAILABILITY_PERIOD,IMAGE",
   });
   for await (const obj of page) {
     objects.push(obj);
@@ -304,13 +325,23 @@ function normalizeCatalog(objects: Square.CatalogObject[]): CatalogSnapshot {
     }
   }
 
+  // Build IMAGE id -> url lookup so item normalization can resolve the
+  // first available image from `itemData.imageIds` in O(1).
+  const imagesById = new Map<string, string>();
+  for (const obj of objects) {
+    if (isImageObject(obj) && obj.id) {
+      const url = obj.imageData?.url;
+      if (url) imagesById.set(obj.id, url);
+    }
+  }
+
   const items: Item[] = [];
   const categories: Category[] = [];
   const modifierLists: ModifierList[] = [];
 
   for (const obj of objects) {
     if (isItemObject(obj)) {
-      const it = normalizeItem(obj);
+      const it = normalizeItem(obj, imagesById);
       if (it) items.push(it);
     } else if (isCategoryObject(obj)) {
       const c = normalizeCategory(obj, availabilityById);

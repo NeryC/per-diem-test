@@ -21,6 +21,7 @@ interface WireCatalog {
     id: string;
     name: string;
     description: string | null;
+    imageUrl: string | null;
     categoryId: string | null;
     variations: Array<{
       id: string;
