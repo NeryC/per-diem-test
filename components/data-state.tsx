@@ -7,8 +7,18 @@ import { Button } from "@/components/ui/button";
  * DataState centralizes the four UI states the spec requires
  * (loading / empty / error / loaded) so no caller has to reinvent them.
  *
- * Stale-with-data renders children — the wrapper treats data presence as
- * the override — so a background refresh does not flash the skeleton.
+ * Precedence (top wins):
+ *   1. loading=true AND no data        → loadingFallback (initial fetch)
+ *   2. error                           → errorFallback (always wins, even with stale data)
+ *   3. loading=true AND data present   → children (stale-while-refresh, no skeleton flash)
+ *   4. no data                         → loadingFallback (defensive)
+ *   5. isEmpty(data)                   → emptyFallback
+ *   6. otherwise                       → children
+ *
+ * Note that error wins over stale data: a failed background refresh surfaces
+ * the error UI, not the stale data. Callers that want to keep stale data
+ * visible alongside an error banner should pass a custom errorFallback that
+ * renders both.
  *
  * Refs: spec §7
  */
