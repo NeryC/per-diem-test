@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { formatMoney, parseMoney, zeroMoney } from "@/lib/money";
 import type { SelectedModifier } from "@/lib/cart/types";
@@ -32,10 +32,11 @@ interface ResolvedList extends WireModifierList {
 type SelectionMap = Record<string, Set<string>>;
 
 function resolveLists(item: WireItem, all: WireModifierList[]): ResolvedList[] {
+  const listsById = new Map(all.map((ml) => [ml.id, ml]));
   const out: ResolvedList[] = [];
   for (const info of item.modifierListInfo) {
     if (!info.enabled) continue;
-    const list = all.find((ml) => ml.id === info.modifierListId);
+    const list = listsById.get(info.modifierListId);
     if (!list) continue;
     const minSel = info.minSelectedOverride ?? list.minSelected ?? 0;
     const maxSel =
@@ -63,6 +64,29 @@ export function ModifierSelector({
     return init;
   });
 
+  // Fire onChange once on mount so the parent learns about unmet min_selected
+  // constraints before the user has touched anything. Without this, an item
+  // with min_selected=1 lands in a state where the Add-to-cart button is
+  // enabled even though no modifier is selected.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  const listsKey = lists.map((l) => `${l.id}:${l.minSel.toString()}`).join(",");
+  useEffect(() => {
+    const errors: string[] = [];
+    for (const list of lists) {
+      if (list.minSel > 0) {
+        errors.push(
+          `Select at least ${list.minSel.toString()} from ${list.name}`,
+        );
+      }
+    }
+    onChangeRef.current([], errors);
+    // listsKey changes when the resolved-lists shape changes (different item).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listsKey]);
+
   function emit(next: SelectionMap): void {
     setSelection(next);
     const flat: SelectedModifier[] = [];
@@ -79,8 +103,9 @@ export function ModifierSelector({
           `Select at most ${list.maxSel.toString()} from ${list.name}`,
         );
       }
+      const modifiersById = new Map(list.modifiers.map((m) => [m.id, m]));
       for (const modId of sel) {
-        const mod = list.modifiers.find((m) => m.id === modId);
+        const mod = modifiersById.get(modId);
         if (!mod) continue;
         flat.push({
           modifierId: mod.id,
@@ -93,8 +118,9 @@ export function ModifierSelector({
     onChange(flat, errors);
   }
 
+  const listsByIdForToggle = new Map(lists.map((l) => [l.id, l]));
   function toggle(listId: string, modifierId: string): void {
-    const list = lists.find((l) => l.id === listId);
+    const list = listsByIdForToggle.get(listId);
     if (!list) return;
     const current = new Set(selection[listId]);
     if (list.selectionType === "SINGLE") {
