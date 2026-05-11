@@ -23,8 +23,6 @@ type StockSummary = "ok" | "low" | "out";
  * - Any tracked IN_STOCK with quantity <= threshold → "low"
  * - No tracked variations (all OTHER, or none returned) → "ok" (treat as
  *   untracked-available so we don't badge merchants who don't run inventory)
- *
- * Refs: spec §6.2, §6.3
  */
 function summarizeInventory(
   item: WireItem,

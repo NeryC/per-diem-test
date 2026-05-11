@@ -11,8 +11,6 @@ export const dynamic = "force-dynamic";
  * derived from the cached catalog (no extra Square call), so a typical
  * request costs a single batch-get-counts hit and is then memoized for
  * 30s by `getInventory`'s `unstable_cache` wrapper.
- *
- * Refs: spec §6.1
  */
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);

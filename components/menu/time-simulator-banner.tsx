@@ -11,8 +11,6 @@ import { useTimeContext } from "@/lib/time/provider";
  * Only renders when the URL contains ?at=, so real users never see
  * it. Exit clears the param via router.replace so back-navigation
  * does not collect history entries from toggling simulation.
- *
- * Refs: spec §3.5
  */
 export function TimeSimulatorBanner(): ReactNode {
   const ctx = useTimeContext();

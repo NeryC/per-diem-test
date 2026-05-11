@@ -6,8 +6,6 @@
  * transport bigints. UI components import only from this module so the
  * server module graph (and therefore the Square SDK and the access token)
  * never reaches the client bundle.
- *
- * Refs: spec §1.3, §2.5
  */
 
 export interface WireMoney {

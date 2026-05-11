@@ -21,8 +21,6 @@ import type { WireCatalog, WireItem } from "@/lib/types";
  * variation has a price. The button label switches to a contextual
  * 'Not available right now' so the user gets feedback that matches
  * the badge.
- *
- * Refs: spec §4.2, §4.5
  */
 export interface ItemDetailProps {
   item: WireItem;

@@ -22,8 +22,6 @@ import {
  *   downstream contract is a 3-state enum.
  * - Sandbox occasionally emits state=IN_STOCK with quantity="0". We treat
  *   that as OUT_OF_STOCK to match merchant expectations.
- *
- * Refs: spec §6.1, §6.3
  */
 
 interface FetchArgs {

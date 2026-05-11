@@ -15,8 +15,6 @@ import type { WireItem, WireModifierList, WireMoney } from "@/lib/types";
  * onChange callback so the parent decides whether to disable the
  * add-to-cart button — the selector itself stays stateless about
  * cart concerns.
- *
- * Refs: spec §4.2
  */
 
 export interface ModifierSelectorProps {

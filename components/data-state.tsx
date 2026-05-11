@@ -19,8 +19,6 @@ import { Button } from "@/components/ui/button";
  * the error UI, not the stale data. Callers that want to keep stale data
  * visible alongside an error banner should pass a custom errorFallback that
  * renders both.
- *
- * Refs: spec §7
  */
 export interface DataStateProps<T> {
   loading: boolean;

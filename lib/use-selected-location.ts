@@ -13,8 +13,6 @@ import { useCallback, useSyncExternalStore } from "react";
  * persisted value visible) and the client snapshot reads localStorage —
  * giving consumers a stable `hasMounted` flag they can use to avoid
  * SSR/CSR hydration mismatches.
- *
- * Refs: spec §1.2
  */
 
 const STORAGE_KEY = "perdiem-selected-location-v1";

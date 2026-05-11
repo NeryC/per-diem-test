@@ -13,8 +13,6 @@ import type { CartLineItem, CartState } from "./types";
  * wraps JSON.parse/stringify with reviver/replacer pairs that round-
  * trip bigints through a 'NNNn' suffix; without this, money amounts
  * serialize to strings and silently break arithmetic on rehydrate.
- *
- * Refs: spec §4.1, §4.4
  */
 
 interface CartActions {

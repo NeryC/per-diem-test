@@ -22,8 +22,6 @@ import { useHasMounted } from "@/lib/use-has-mounted";
  * useHasMounted defers the persisted-state read to client mount so
  * the SSR pass renders an empty button — matches the first client
  * render and avoids a hydration mismatch warning.
- *
- * Refs: spec §4.5
  */
 export function CartDrawer(): ReactNode {
   const lines = useCart((s) => s.lines);

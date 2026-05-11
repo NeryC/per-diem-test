@@ -10,8 +10,6 @@
  * The formatter map memoizes per-zone Intl objects so the hot path
  * (every badge re-render through the resolver) does not pay the
  * formatter-construction cost on each call.
- *
- * Refs: spec §3.3
  */
 
 export type DayOfWeek = "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT";

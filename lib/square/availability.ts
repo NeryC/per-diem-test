@@ -11,8 +11,6 @@ import { toZonedParts, zonedDateToUTC, type DayOfWeek } from "@/lib/time/zoned";
  * start time in local minutes, then converts back through
  * zonedDateToUTC so the returned Date is a real instant the UI can
  * format in the location's timezone.
- *
- * Refs: spec §3.1, §3.2, §3.4
  */
 
 export type AvailabilityState =

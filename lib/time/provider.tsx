@@ -17,8 +17,6 @@ import {
  * When the URL contains `?at=<ISO>`, the provider serves that
  * instant and skips the interval — useful for demoing a specific
  * time without changing system clocks.
- *
- * Refs: spec §3.5
  */
 
 interface TimeContextValue {

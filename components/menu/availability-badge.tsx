@@ -13,8 +13,6 @@ import type { AvailabilityState } from "@/lib/square/availability";
  * icon glyph, text, and a color variant so the signal does not depend
  * on color alone (a11y). Time formatting uses the LOCATION's timezone,
  * not the browser's, so "Opens 11 AM" always means 11 AM at the store.
- *
- * Refs: spec §3.6, §9.1
  */
 
 export interface AvailabilityBadgeProps {

@@ -7,8 +7,6 @@ import type { Money } from "@/lib/money";
  * between add and checkout never silently mutates a guest's order.
  * locationId is duplicated on the line and on the state so a
  * mistakenly cross-location cart fails fast at write time.
- *
- * Refs: spec §4.1
  */
 
 export interface SelectedModifier {

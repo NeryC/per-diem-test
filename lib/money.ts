@@ -5,8 +5,6 @@ import type { WireMoney } from "./types";
  * for USD) so addition and multiplication are exact. The wire boundary
  * carries amount as a decimal string (`WireMoney`); call `parseMoney` to
  * cross from wire to domain.
- *
- * Refs: spec §1.2, §4.3
  */
 export interface Money {
   amount: bigint;

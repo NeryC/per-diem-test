@@ -127,8 +127,6 @@ export type InventoryState = z.infer<typeof InventoryStateSchema>;
  * the cache layer) is a flat record keyed by variation id with the resolved
  * state and a numeric quantity, so the UI never needs to think about
  * Square's wider InventoryState enum or its decimal-string quantities.
- *
- * Refs: spec §6
  */
 export const InventoryEntrySchema = z.object({
   state: InventoryStateSchema,

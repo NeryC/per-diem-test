@@ -11,8 +11,6 @@ import type {
  * isItemAtLocation encodes Square's three-flag presence contract
  * (presentAtAllLocations, presentAtLocationIds, absentAtLocationIds)
  * exactly once so every UI surface filters consistently.
- *
- * Refs: spec §2 core requirement 4
  */
 
 export async function fetchLocations(): Promise<WireLocation[]> {
@@ -31,8 +29,6 @@ export async function fetchCatalog(): Promise<WireCatalog> {
  * Inventory snapshot keyed by variation id. `OTHER` covers Square states
  * the proxy could not collapse (e.g. SOLD, RESERVED_FOR_SALE) and is
  * treated by the UI as "untracked / assume available".
- *
- * Refs: spec §6
  */
 export interface InventoryEntry {
   state: "IN_STOCK" | "OUT_OF_STOCK" | "OTHER";
