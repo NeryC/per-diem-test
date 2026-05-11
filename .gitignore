@@ -39,6 +39,17 @@ coverage/
 .vscode/
 .idea/
 
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# yarn (next-app default)
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
 # superpowers session artifacts
 .superpowers/
 council-report-*.html
