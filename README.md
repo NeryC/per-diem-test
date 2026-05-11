@@ -7,8 +7,14 @@ location-scoped cart, and live inventory.
 > Built with Next.js 16 App Router, React 19, TypeScript (strict, no
 > `any`), Tailwind v4, shadcn/ui v4, Zustand, Zod, and the Square SDK v44.
 
-<!-- Drop a hero screenshot at docs/screenshots/hero.png and uncomment:
-![Per Diem menu hero](docs/screenshots/hero.png) -->
+**Live demo:** <https://per-diem-test.vercel.app>
+
+Try it with a simulated clock to see the time-of-day resolver in action:
+
+- <https://per-diem-test.vercel.app/?at=2026-05-12T06:30> — Breakfast open
+- <https://per-diem-test.vercel.app/?at=2026-05-12T15:00> — Breakfast closed, "Opens Wed 6:00 AM" badges
+
+![Production deploy at ?at=2026-05-12T15:00](docs/screenshots/06-production-vercel.png)
 
 ---
 
