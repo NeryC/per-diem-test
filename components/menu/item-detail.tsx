@@ -64,6 +64,7 @@ export function ItemDetail({
   const [mods, setMods] = useState<SelectedModifier[]>([]);
   const [modErrors, setModErrors] = useState<string[]>([]);
   const addLine = useCart((s) => s.addLine);
+  const setDrawerOpen = useCart((s) => s.setDrawerOpen);
 
   // If the user hasn't manually changed selection AND the current selection is
   // OOS but a fresh inventory snapshot has an in-stock alternative, switch
@@ -217,6 +218,10 @@ export function ItemDetail({
               qty: 1,
               locationId,
             });
+            // Pop the drawer so the user gets immediate visual confirmation
+            // that the item landed in the cart, instead of relying on the
+            // tiny count badge in the header.
+            setDrawerOpen(true);
           }}
         >
           {blocked

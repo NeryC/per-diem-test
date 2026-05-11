@@ -25,6 +25,8 @@ import { useHasMounted } from "@/lib/use-has-mounted";
  */
 export function CartDrawer(): ReactNode {
   const lines = useCart((s) => s.lines);
+  const drawerOpen = useCart((s) => s.drawerOpen);
+  const setDrawerOpen = useCart((s) => s.setDrawerOpen);
   const mounted = useHasMounted();
 
   if (!mounted) {
@@ -39,7 +41,7 @@ export function CartDrawer(): ReactNode {
   const subtotal = cartSubtotal({ locationId: null, lines });
 
   return (
-    <Sheet>
+    <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
       <SheetTrigger
         render={
           <Button

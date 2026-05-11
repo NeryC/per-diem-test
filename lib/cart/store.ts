@@ -15,6 +15,10 @@ import type { CartLineItem, CartState } from "./types";
  * serialize to strings and silently break arithmetic on rehydrate.
  */
 
+interface CartUiState {
+  drawerOpen: boolean;
+}
+
 interface CartActions {
   setLocation: (locationId: string) => { needsConfirm: boolean };
   forceSetLocationAndClear: (locationId: string) => void;
@@ -22,7 +26,17 @@ interface CartActions {
   updateQty: (lineId: string, qty: number) => void;
   removeLine: (lineId: string) => void;
   clear: () => void;
+  setDrawerOpen: (open: boolean) => void;
 }
+
+type CartStore = CartState & CartUiState & CartActions;
+
+/**
+ * The subset of CartStore that survives a page reload. drawerOpen is
+ * transient UI and stays out so the drawer never reappears on its own.
+ * Functions are not persisted by the JSON serializer anyway.
+ */
+type PersistedCart = Pick<CartStore, "locationId" | "lines">;
 
 function uuid(): string {
   if (
@@ -36,7 +50,7 @@ function uuid(): string {
 
 const BIGINT_PATTERN = /^\d+n$/;
 
-const storage = createJSONStorage<CartState & CartActions>(() => localStorage, {
+const storage = createJSONStorage<PersistedCart>(() => localStorage, {
   reviver: (key: string, value: unknown): unknown => {
     if (
       key === "amount" &&
@@ -53,11 +67,12 @@ const storage = createJSONStorage<CartState & CartActions>(() => localStorage, {
   },
 });
 
-export const useCart = create<CartState & CartActions>()(
+export const useCart = create<CartStore>()(
   persist(
     (set, get) => ({
       locationId: null,
       lines: [],
+      drawerOpen: false,
       setLocation: (locationId: string): { needsConfirm: boolean } => {
         const current = get().locationId;
         if (current === null || current === locationId) {
@@ -101,11 +116,23 @@ export const useCart = create<CartState & CartActions>()(
       clear: (): void => {
         set({ lines: [] });
       },
+      setDrawerOpen: (open: boolean): void => {
+        set({ drawerOpen: open });
+      },
     }),
     {
       name: "perdiem-cart-v1",
       storage,
       version: 1,
+      // Persist only the durable shopping state. drawerOpen is transient UI
+      // and must not survive a reload — otherwise the drawer reappears every
+      // time the user lands on the page. Zustand merges the persisted subset
+      // back into the full default state on rehydrate, so drawerOpen keeps
+      // its initial false.
+      partialize: (state): PersistedCart => ({
+        locationId: state.locationId,
+        lines: state.lines,
+      }),
     },
   ),
 );
