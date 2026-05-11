@@ -191,6 +191,19 @@ describe("resolveAvailability", () => {
     expect(result.kind).toBe("unavailable_at_location");
   });
 
+  it("11. closed_today when only window is today's and it has passed", () => {
+    const result = resolveAvailability({
+      item: makeItem(),
+      category: makeCategory([
+        { dayOfWeek: "TUE", range: { startLocal: "08:00", endLocal: "10:00" } },
+      ]),
+      locationId: "loc-1",
+      locationTimezone: NY,
+      now: new Date("2026-05-12T19:00:00Z"), // 15:00 EDT TUE — already closed, no other window
+    });
+    expect(result.kind).toBe("closed_today");
+  });
+
   it("10. multiple overlapping windows: takes the active one or earliest next", () => {
     const result = resolveAvailability({
       item: makeItem(),

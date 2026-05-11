@@ -22,16 +22,6 @@ export interface AvailabilityBadgeProps {
   locationTimezone: string;
 }
 
-function formatOpenLabel(nextOpen: Date, timezone: string): string {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return fmt.format(nextOpen);
-}
-
 export function AvailabilityBadge({
   state,
   locationTimezone,
@@ -39,15 +29,32 @@ export function AvailabilityBadge({
   if (state.kind === "available") return null;
 
   if (state.kind === "opens_at") {
-    const label = formatOpenLabel(state.nextOpen, locationTimezone);
+    const todayFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: locationTimezone,
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    const futureFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: locationTimezone,
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    const label =
+      state.reason === "out_of_window_today"
+        ? `Opens at ${todayFmt.format(state.nextOpen)}`
+        : `Opens ${futureFmt.format(state.nextOpen)}`;
+    // aria-label always includes weekday so screen-reader users get explicit
+    // context regardless of which branch produced the visible label.
+    const ariaLabel = `Opens at ${futureFmt.format(state.nextOpen)}, currently closed`;
     return (
       <Badge
         variant="outline"
         className="border-amber-300 bg-amber-100 text-amber-900"
-        aria-label={`Opens ${label}`}
+        aria-label={ariaLabel}
       >
         <span aria-hidden="true">⏰</span>
-        <span>Opens {label}</span>
+        <span>{label}</span>
       </Badge>
     );
   }

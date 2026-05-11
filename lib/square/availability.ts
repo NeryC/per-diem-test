@@ -35,6 +35,10 @@ const DOW_ORDER: readonly DayOfWeek[] = [
   "SAT",
 ];
 
+/** Horizon for the opens_at lookahead: today + 6 future days. Items with no
+ * opening in this window resolve to closed_today. */
+const LOOKAHEAD_DAYS = 7;
+
 function minutesOfDay(hh: string): number {
   const [h, m] = hh.split(":").map((n) => Number.parseInt(n, 10));
   return (h ?? 0) * 60 + (m ?? 0);
@@ -84,7 +88,7 @@ export function resolveAvailability(input: {
 
   // Look for the next opening within the next 7 days (today included).
   const todayIdx = DOW_ORDER.indexOf(here.dayOfWeek);
-  for (let offset = 0; offset < 8; offset++) {
+  for (let offset = 0; offset < LOOKAHEAD_DAYS; offset++) {
     const dayIdx = (todayIdx + offset) % 7;
     const dow = DOW_ORDER[dayIdx];
     if (!dow) continue;
