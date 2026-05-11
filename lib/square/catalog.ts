@@ -103,12 +103,18 @@ function parseAvailabilityPeriods(
     const start = trimSeconds(p.startLocalTime);
     const end = trimSeconds(p.endLocalTime);
     if (end > start || end === start) {
-      out.push({ dayOfWeek: day, range: { start, end } });
+      out.push({ dayOfWeek: day, range: { startLocal: start, endLocal: end } });
     } else {
       // Crosses midnight: e.g. 22:00 -> 02:00 on TUE becomes
       // TUE 22:00-23:59 + WED 00:00-02:00.
-      out.push({ dayOfWeek: day, range: { start, end: "23:59" } });
-      out.push({ dayOfWeek: NEXT_DAY[day], range: { start: "00:00", end } });
+      out.push({
+        dayOfWeek: day,
+        range: { startLocal: start, endLocal: "23:59" },
+      });
+      out.push({
+        dayOfWeek: NEXT_DAY[day],
+        range: { startLocal: "00:00", endLocal: end },
+      });
     }
   }
   return out;
@@ -206,14 +212,32 @@ function normalizeCategory(
     const w = availabilityById.get(periodId);
     if (w) windows.push(...w);
   }
+  // Square v44's CatalogCategory does not surface per-location override
+  // windows in the SDK type; the spec contract still wants the shape
+  // Record<locationId, AvailabilityWindow[]> so downstream code can rely
+  // on it. Defensively read an optional `locationOverrides` array off
+  // categoryData (older API responses include it) and reshape; otherwise
+  // emit an empty record.
+  const overrides: Record<string, AvailabilityWindow[]> = {};
+  const rawOverrides = (
+    data as
+      | {
+          locationOverrides?: Array<{
+            locationId?: string | null;
+            availabilityPeriods?: Square.CatalogAvailabilityPeriod[] | null;
+          }> | null;
+        }
+      | undefined
+  )?.locationOverrides;
+  for (const ov of rawOverrides ?? []) {
+    if (!ov.locationId) continue;
+    overrides[ov.locationId] = parseAvailabilityPeriods(ov.availabilityPeriods);
+  }
   return {
     id: obj.id,
     name: data?.name ?? "",
     availabilityWindows: windows,
-    locationOverrides: [
-      ...(obj.presentAtLocationIds ?? []),
-      ...(obj.absentAtLocationIds ?? []),
-    ],
+    locationOverrides: overrides,
     presentAtAllLocations: obj.presentAtAllLocations ?? true,
     presentAtLocationIds: obj.presentAtLocationIds ?? [],
     absentAtLocationIds: obj.absentAtLocationIds ?? [],
@@ -297,7 +321,12 @@ function normalizeCatalog(objects: Square.CatalogObject[]): CatalogSnapshot {
     }
   }
 
-  return CatalogSnapshotSchema.parse({ items, categories, modifierLists });
+  return CatalogSnapshotSchema.parse({
+    items,
+    categories,
+    modifierLists,
+    fetchedAt: new Date().toISOString(),
+  });
 }
 
 async function fetchCatalog(): Promise<Result<CatalogSnapshot>> {

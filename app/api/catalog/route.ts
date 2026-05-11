@@ -50,6 +50,7 @@ interface WireCatalog {
       ordinal: number;
     }>;
   }>;
+  fetchedAt: string;
 }
 
 function serialize(snapshot: CatalogSnapshot): WireCatalog {
@@ -69,6 +70,7 @@ function serialize(snapshot: CatalogSnapshot): WireCatalog {
         priceMoney: serializeMoney(m.priceMoney),
       })),
     })),
+    fetchedAt: snapshot.fetchedAt,
   };
 }
 

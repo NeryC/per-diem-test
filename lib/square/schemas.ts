@@ -14,8 +14,8 @@ export type Money = z.infer<typeof MoneySchema>;
 
 /** "HH:MM" 24h. Pre-split: midnight crossings produce two windows. */
 export const TimeRangeSchema = z.object({
-  start: z.string().regex(/^\d{2}:\d{2}$/),
-  end: z.string().regex(/^\d{2}:\d{2}$/),
+  startLocal: z.string().regex(/^\d{2}:\d{2}$/),
+  endLocal: z.string().regex(/^\d{2}:\d{2}$/),
 });
 export type TimeRange = z.infer<typeof TimeRangeSchema>;
 
@@ -99,7 +99,7 @@ export const CategorySchema = z.object({
   id: z.string().min(1),
   name: z.string(),
   availabilityWindows: z.array(AvailabilityWindowSchema),
-  locationOverrides: z.array(z.string()),
+  locationOverrides: z.record(z.string(), z.array(AvailabilityWindowSchema)),
   presentAtAllLocations: z.boolean(),
   presentAtLocationIds: z.array(z.string()),
   absentAtLocationIds: z.array(z.string()),
@@ -110,13 +110,14 @@ export const CatalogSnapshotSchema = z.object({
   items: z.array(ItemSchema),
   categories: z.array(CategorySchema),
   modifierLists: z.array(ModifierListSchema),
+  fetchedAt: z.string().datetime(),
 });
 export type CatalogSnapshot = z.infer<typeof CatalogSnapshotSchema>;
 
 export const InventoryEntrySchema = z.object({
   variationId: z.string().min(1),
   locationId: z.string().min(1),
-  state: z.string().min(1),
+  state: z.enum(["IN_STOCK", "OUT_OF_STOCK", "OTHER"]),
   quantity: z.string(),
 });
 export type InventoryEntry = z.infer<typeof InventoryEntrySchema>;
