@@ -19,8 +19,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/lib/cart/store";
 import {
-  fetchCatalog,
-  fetchLocations,
+  fetchCatalogWithStatus,
+  fetchLocationsWithStatus,
   getCachedCatalog,
   getCachedCatalogMeta,
   getCachedLocations,
@@ -171,16 +171,24 @@ export default function MenuHomePage(): ReactNode {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchLocations(), fetchCatalog()])
-      .then(([locations, catalog]) => {
+    Promise.all([fetchLocationsWithStatus(), fetchCatalogWithStatus()])
+      .then(([locResult, catResult]) => {
         if (cancelled) return;
         const meta = getCachedCatalogMeta();
-        setFetchState({
-          status: "ready",
-          data: { locations, catalog },
-          error: null,
-          cacheSavedAt: meta ? meta.savedAt : Date.now(),
-        });
+        const data = { locations: locResult.data, catalog: catResult.data };
+        const cacheSavedAt = meta ? meta.savedAt : Date.now();
+        // When either fetch served from cache because of a network failure,
+        // flip into the "error" branch so the stale banner renders.
+        const next: FetchState =
+          locResult.fromCache || catResult.fromCache
+            ? {
+                status: "error",
+                data,
+                error: new Error("Network refresh failed; showing cached data"),
+                cacheSavedAt,
+              }
+            : { status: "ready", data, error: null, cacheSavedAt };
+        setFetchState(next);
       })
       .catch((err: unknown) => {
         if (cancelled) return;

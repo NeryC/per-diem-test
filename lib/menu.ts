@@ -24,32 +24,54 @@ import type {
 const LOCATIONS_CACHE_KEY = "perdiem-locations-cache-v1";
 const CATALOG_CACHE_KEY = "perdiem-catalog-cache-v1";
 
-export async function fetchLocations(): Promise<WireLocation[]> {
+export interface FetchOutcome<T> {
+  data: T;
+  fromCache: boolean;
+}
+
+/**
+ * Network-first fetch with cache fallback that surfaces whether the cache
+ * was used. Use this when the UI needs to render a "stale" banner. Throws
+ * only when both network and cache miss.
+ */
+export async function fetchLocationsWithStatus(): Promise<
+  FetchOutcome<WireLocation[]>
+> {
   try {
     const res = await fetch("/api/locations", { cache: "no-store" });
-    if (!res.ok) throw new Error(`locations: ${res.status}`);
+    if (!res.ok) throw new Error(`locations: ${res.status.toString()}`);
     const data = (await res.json()) as WireLocation[];
     writeCache(LOCATIONS_CACHE_KEY, data);
-    return data;
-  } catch (err) {
+    return { data, fromCache: false };
+  } catch {
     const cached = readCache<WireLocation[]>(LOCATIONS_CACHE_KEY);
-    if (cached) return cached.value;
-    throw err;
+    if (cached) return { data: cached.value, fromCache: true };
+    throw new Error("locations: network failed and no cache available");
   }
 }
 
-export async function fetchCatalog(): Promise<WireCatalog> {
+export async function fetchCatalogWithStatus(): Promise<
+  FetchOutcome<WireCatalog>
+> {
   try {
     const res = await fetch("/api/catalog", { cache: "no-store" });
-    if (!res.ok) throw new Error(`catalog: ${res.status}`);
+    if (!res.ok) throw new Error(`catalog: ${res.status.toString()}`);
     const data = (await res.json()) as WireCatalog;
     writeCache(CATALOG_CACHE_KEY, data);
-    return data;
-  } catch (err) {
+    return { data, fromCache: false };
+  } catch {
     const cached = readCache<WireCatalog>(CATALOG_CACHE_KEY);
-    if (cached) return cached.value;
-    throw err;
+    if (cached) return { data: cached.value, fromCache: true };
+    throw new Error("catalog: network failed and no cache available");
   }
+}
+
+export async function fetchLocations(): Promise<WireLocation[]> {
+  return (await fetchLocationsWithStatus()).data;
+}
+
+export async function fetchCatalog(): Promise<WireCatalog> {
+  return (await fetchCatalogWithStatus()).data;
 }
 
 /**
