@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useTimeContext } from "@/lib/time/provider";
@@ -10,30 +10,35 @@ import { useTimeContext } from "@/lib/time/provider";
  *
  * Only renders when the URL contains ?at=, so real users never see
  * it. Exit clears the param via router.replace so back-navigation
- * does not collect history entries from toggling simulation.
+ * does not collect history entries from toggling simulation. The
+ * URL is read inside the click handler (via window.location) rather
+ * than subscribing through usePathname/useSearchParams, so the
+ * banner doesn't re-render on every navigation when it isn't even
+ * visible.
  */
+
+// Hoisted: Intl constructors allocate dozens of objects per locale lookup,
+// and the format never depends on render state.
+const fmt = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 export function TimeSimulatorBanner(): ReactNode {
   const ctx = useTimeContext();
-  const router = useRouter();
-  const path = usePathname();
-  const params = useSearchParams();
+  const { replace } = useRouter();
 
   if (!ctx.isSimulated || !ctx.simulatedAt) return null;
 
   const exit = (): void => {
-    const next = new URLSearchParams(params.toString());
-    next.delete("at");
-    const qs = next.toString();
-    router.replace(qs ? `${path}?${qs}` : path);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("at");
+    const qs = url.searchParams.toString();
+    replace(qs ? `${url.pathname}?${qs}` : url.pathname);
   };
-
-  const fmt = new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between bg-amber-100 px-4 py-2 text-amber-900">

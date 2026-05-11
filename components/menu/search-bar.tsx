@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -8,20 +8,48 @@ type Props = {
   onChange: (q: string) => void;
 };
 
+/**
+ * SearchBar owns the *visible* input state so typing never lags by a
+ * debounce tick. The parent's `value` is treated as a one-shot
+ * initializer (controlled inputs whose source-of-truth lives in the
+ * child would force the user to wait 150ms between keystrokes for
+ * the filter state to round-trip back). The latest `onChange` is read
+ * through a ref so the debounce effect doesn't have to re-subscribe
+ * every render — this is the React-19-safe substitute for
+ * useEffectEvent until it ships stable.
+ */
 export function SearchBar({ value, onChange }: Props) {
+  // react-doctor-disable-next-line react-doctor/no-derived-useState -- prop is a one-shot initializer; child owns the visible input state so typing doesn't lag a debounce tick behind keystrokes.
   const [local, setLocal] = useState(value);
   const ref = useRef<HTMLInputElement>(null);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- local mirrors parent value to allow uncontrolled debouncing
-  useEffect(() => setLocal(value), [value]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updateQueryDebounced = (e: ChangeEvent<HTMLInputElement>): void => {
+    const next = e.target.value;
+    setLocal(next);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => onChangeRef.current(next), 150);
+  };
+
+  const clearQuery = (): void => {
+    setLocal("");
+    if (timer.current) clearTimeout(timer.current);
+    onChangeRef.current("");
+  };
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
-    const id = setTimeout(() => onChange(local), 150);
-    return () => clearTimeout(id);
-  }, [local, onChange]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent): void => {
       if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
         e.preventDefault();
         ref.current?.focus();
@@ -37,12 +65,12 @@ export function SearchBar({ value, onChange }: Props) {
         ref={ref}
         type="search"
         value={local}
-        onChange={(e) => setLocal(e.target.value)}
+        onChange={updateQueryDebounced}
         placeholder="Search menu (press / to focus)"
         aria-label="Search menu"
       />
       {local.length > 0 && (
-        <Button variant="ghost" size="sm" onClick={() => setLocal("")}>
+        <Button variant="ghost" size="sm" onClick={clearQuery}>
           Clear
         </Button>
       )}

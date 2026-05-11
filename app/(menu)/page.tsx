@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { DataState } from "@/components/data-state";
 import { CategoryFilter } from "@/components/menu/category-filter";
@@ -97,7 +97,7 @@ export default function MenuHomePage(): ReactNode {
     data: null,
     error: null,
   });
-  const [tick, setTick] = useState(0);
+  const [retryCount, retry] = useReducer((c: number) => c + 1, 0);
   const inventory = useInventoryPolling(selectedLocationId);
 
   useEffect(() => {
@@ -122,7 +122,7 @@ export default function MenuHomePage(): ReactNode {
     return (): void => {
       cancelled = true;
     };
-  }, [tick]);
+  }, [retryCount]);
 
   const data = fetchState.data;
   const loading = fetchState.status === "loading";
@@ -208,7 +208,7 @@ export default function MenuHomePage(): ReactNode {
             No locations available right now.
           </p>
         }
-        onRetry={() => setTick((t) => t + 1)}
+        onRetry={retry}
       >
         {(d) => (
           <div className="flex flex-col gap-6">

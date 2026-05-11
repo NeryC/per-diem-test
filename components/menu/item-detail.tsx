@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { AvailabilityBadge } from "@/components/menu/availability-badge";
 import { ModifierSelector } from "@/components/cart/modifier-selector";
@@ -57,7 +57,10 @@ export function ItemDetail({
   const [variationId, setVariationId] = useState<string>(() =>
     pickInitialVariationId(item, inventory),
   );
-  const [userTouchedVariation, setUserTouchedVariation] = useState(false);
+  // Tracks whether the user has clicked a variation radio. Stored as a ref
+  // because we only read it inside the auto-switch effect; promoting it to
+  // state would force a wasted re-render on the first click.
+  const userTouchedVariation = useRef(false);
   const [mods, setMods] = useState<SelectedModifier[]>([]);
   const [modErrors, setModErrors] = useState<string[]>([]);
   const addLine = useCart((s) => s.addLine);
@@ -66,7 +69,7 @@ export function ItemDetail({
   // OOS but a fresh inventory snapshot has an in-stock alternative, switch
   // over. Once the user clicks a radio, respect their choice.
   useEffect(() => {
-    if (userTouchedVariation) return;
+    if (userTouchedVariation.current) return;
     const current = inventory[variationId];
     if (current?.state !== "OUT_OF_STOCK") return;
     const next = item.variations.find(
@@ -76,7 +79,7 @@ export function ItemDetail({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs selection to fresh inventory; only fires when user hasn't manually picked
       setVariationId(next.id);
     }
-  }, [inventory, variationId, item.variations, userTouchedVariation]);
+  }, [inventory, variationId, item.variations]);
 
   const variation =
     item.variations.find((v) => v.id === variationId) ?? initialVariation;
@@ -153,7 +156,7 @@ export function ItemDetail({
                     oos ? "This option is currently out of stock." : undefined
                   }
                   onClick={() => {
-                    setUserTouchedVariation(true);
+                    userTouchedVariation.current = true;
                     setVariationId(v.id);
                   }}
                 >
@@ -187,7 +190,7 @@ export function ItemDetail({
         {totalPerUnit ? (
           <p className="text-2xl font-semibold">{formatMoney(totalPerUnit)}</p>
         ) : (
-          <p className="text-muted-foreground text-lg">—</p>
+          <p className="text-muted-foreground text-lg">--</p>
         )}
         {modErrors.map((e) => (
           <p key={e} className="text-sm text-amber-700">

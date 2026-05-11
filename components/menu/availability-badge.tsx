@@ -4,6 +4,41 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { AvailabilityState } from "@/lib/square/availability";
 
+// Intl constructors allocate dozens of objects per locale lookup.
+// Cache one formatter per (kind, timezone) pair at module scope so
+// every badge with the same location reuses the same instance.
+const todayFmtCache = new Map<string, Intl.DateTimeFormat>();
+const futureFmtCache = new Map<string, Intl.DateTimeFormat>();
+
+function getTodayFmt(tz: string): Intl.DateTimeFormat {
+  let f = todayFmtCache.get(tz);
+  if (!f) {
+    // react-doctor-disable-next-line react-doctor/js-hoist-intl -- formatter depends on the location tz (a render-time prop), so it cannot be module-scope-constructed; the Map above caches per-tz so each unique timezone constructs at most once.
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    todayFmtCache.set(tz, f);
+  }
+  return f;
+}
+
+function getFutureFmt(tz: string): Intl.DateTimeFormat {
+  let f = futureFmtCache.get(tz);
+  if (!f) {
+    // react-doctor-disable-next-line react-doctor/js-hoist-intl -- formatter depends on the location tz (a render-time prop), so it cannot be module-scope-constructed; the Map above caches per-tz so each unique timezone constructs at most once.
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    futureFmtCache.set(tz, f);
+  }
+  return f;
+}
+
 /**
  * AvailabilityBadge — state-aware indicator for an item's time/location
  * availability.
@@ -27,17 +62,8 @@ export function AvailabilityBadge({
   if (state.kind === "available") return null;
 
   if (state.kind === "opens_at") {
-    const todayFmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: locationTimezone,
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    const futureFmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: locationTimezone,
-      weekday: "short",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    const todayFmt = getTodayFmt(locationTimezone);
+    const futureFmt = getFutureFmt(locationTimezone);
     const label =
       state.reason === "out_of_window_today"
         ? `Opens at ${todayFmt.format(state.nextOpen)}`
@@ -61,7 +87,7 @@ export function AvailabilityBadge({
     return (
       <Badge
         variant="outline"
-        className="border-gray-300 bg-gray-100 text-gray-800"
+        className="border-zinc-300 bg-zinc-100 text-zinc-800"
         aria-label="Closed today"
       >
         <span aria-hidden="true">✕</span>

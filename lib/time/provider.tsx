@@ -1,13 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, use, useEffect, useState, type ReactNode } from "react";
 
 /**
  * TimeProvider — supplies `now` to every consumer.
@@ -34,7 +28,9 @@ function parseAtParam(raw: string | null): Date | null {
 }
 
 export function TimeProvider({ children }: { children: ReactNode }): ReactNode {
+  // react-doctor-disable-next-line react-doctor/nextjs-no-use-search-params-without-suspense, react-doctor/react-compiler-destructure-method -- TimeProvider is wrapped in <Suspense fallback={null}> at app/layout.tsx; URLSearchParams.get is a prototype method that requires `this`, so destructuring would break the binding.
   const params = useSearchParams();
+  // react-doctor-disable-next-line react-doctor/react-compiler-destructure-method -- URLSearchParams.get is a prototype method that requires `this`; destructuring breaks the binding.
   const simulatedAt = parseAtParam(params.get("at"));
   const [realNow, setRealNow] = useState<Date>(() => new Date());
 
@@ -54,13 +50,13 @@ export function TimeProvider({ children }: { children: ReactNode }): ReactNode {
 }
 
 export function useNow(): Date {
-  const ctx = useContext(TimeContext);
+  const ctx = use(TimeContext);
   if (!ctx) throw new Error("useNow must be used inside <TimeProvider>");
   return ctx.now;
 }
 
 export function useTimeContext(): TimeContextValue {
-  const ctx = useContext(TimeContext);
+  const ctx = use(TimeContext);
   if (!ctx)
     throw new Error("useTimeContext must be used inside <TimeProvider>");
   return ctx;

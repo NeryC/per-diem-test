@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useReducer, useState } from "react";
 import type { ReactNode } from "react";
 import { DataState } from "@/components/data-state";
 import { ItemDetail } from "@/components/menu/item-detail";
@@ -65,7 +65,7 @@ export default function ItemPage({ params }: PageProps): ReactNode {
     data: null,
     error: null,
   });
-  const [tick, setTick] = useState(0);
+  const [retryCount, retry] = useReducer((c: number) => c + 1, 0);
   const inventory = useInventoryPolling(selectedLocationId);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function ItemPage({ params }: PageProps): ReactNode {
     return (): void => {
       cancelled = true;
     };
-  }, [id, tick]);
+  }, [id, retryCount]);
 
   const resolved = useMemo<{
     availability: AvailabilityState;
@@ -133,7 +133,7 @@ export default function ItemPage({ params }: PageProps): ReactNode {
       isEmpty={(d) => d.item === null}
       loadingFallback={<LoadingFallback />}
       emptyFallback={<NotFound />}
-      onRetry={() => setTick((t) => t + 1)}
+      onRetry={retry}
     >
       {(d) =>
         d.item ? (

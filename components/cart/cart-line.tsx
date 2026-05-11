@@ -17,7 +17,7 @@ export function CartLine({ line }: { line: CartLineItem }): ReactNode {
           <p className="font-medium">
             {line.itemName}{" "}
             <span className="text-muted-foreground">
-              — {line.variationName}
+              · {line.variationName}
             </span>
           </p>
           {line.modifiers.length > 0 && (
