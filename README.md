@@ -1,4 +1,4 @@
-# Per Diem Square Menu Browser
+# Per Diem Test
 
 A take-home for Per Diem: browse a Square sandbox merchant's catalog by
 location, with real-time availability windows, modifier-aware ordering,

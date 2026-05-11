@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Per Diem Menu",
+  title: "Per Diem Test — Square menu browser",
   description:
     "Browse menus by location with real-time availability. Take-home for Per Diem.",
 };
