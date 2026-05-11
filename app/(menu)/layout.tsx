@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { CartDrawer } from "@/components/cart/cart-drawer";
 import { TimeSimulatorBanner } from "@/components/menu/time-simulator-banner";
 
 export default function MenuLayout({
@@ -14,6 +15,7 @@ export default function MenuLayout({
           <h1 className="text-2xl font-semibold tracking-tight">
             Per Diem Menu
           </h1>
+          <CartDrawer />
         </header>
         {children}
       </div>

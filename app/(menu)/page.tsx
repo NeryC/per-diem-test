@@ -1,13 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { DataState } from "@/components/data-state";
 import { CategoryFilter } from "@/components/menu/category-filter";
 import { LocationSwitcher } from "@/components/menu/location-switcher";
 import { MenuList } from "@/components/menu/menu-list";
 import { SearchBar } from "@/components/menu/search-bar";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCart } from "@/lib/cart/store";
 import {
   fetchCatalog,
   fetchLocations,
@@ -55,6 +65,28 @@ export default function MenuHomePage(): ReactNode {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const now = useNow();
+  const setCartLocation = useCart((s) => s.setLocation);
+  const forceSetCartLocation = useCart((s) => s.forceSetLocationAndClear);
+  const [pendingLocation, setPendingLocation] = useState<string | null>(null);
+  const previousLocationRef = useRef<string | null>(null);
+
+  const handleLocationChange = (id: string): void => {
+    previousLocationRef.current = selectedLocationId;
+    setSelectedLocationId(id);
+    const r = setCartLocation(id);
+    if (r.needsConfirm) setPendingLocation(id);
+  };
+
+  const handleStay = (): void => {
+    const prev = previousLocationRef.current;
+    if (prev !== null) setSelectedLocationId(prev);
+    setPendingLocation(null);
+  };
+
+  const handleEmptyAndSwitch = (): void => {
+    if (pendingLocation !== null) forceSetCartLocation(pendingLocation);
+    setPendingLocation(null);
+  };
   type FetchState =
     | { status: "loading"; data: MenuData | null; error: null }
     | { status: "ready"; data: MenuData; error: null }
@@ -162,57 +194,83 @@ export default function MenuHomePage(): ReactNode {
   if (!hasMounted) return null;
 
   return (
-    <DataState<MenuData>
-      loading={loading}
-      error={error}
-      data={data}
-      isEmpty={(d) => d.locations.length === 0}
-      loadingFallback={<LoadingFallback />}
-      emptyFallback={
-        <p className="text-muted-foreground text-sm">
-          No locations available right now.
-        </p>
-      }
-      onRetry={() => setTick((t) => t + 1)}
-    >
-      {(d) => (
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <LocationSwitcher
-              locations={d.locations}
-              value={selectedLocationId}
-              onChange={setSelectedLocationId}
+    <>
+      <DataState<MenuData>
+        loading={loading}
+        error={error}
+        data={data}
+        isEmpty={(d) => d.locations.length === 0}
+        loadingFallback={<LoadingFallback />}
+        emptyFallback={
+          <p className="text-muted-foreground text-sm">
+            No locations available right now.
+          </p>
+        }
+        onRetry={() => setTick((t) => t + 1)}
+      >
+        {(d) => (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <LocationSwitcher
+                locations={d.locations}
+                value={selectedLocationId}
+                onChange={handleLocationChange}
+              />
+              <SearchBar value={query} onChange={setQuery} />
+            </div>
+            <CategoryFilter
+              categories={groups.map((g) => ({
+                category: g.category,
+                count: g.items.length,
+              }))}
+              selected={selectedCategory}
+              onChange={setSelectedCategory}
             />
-            <SearchBar value={query} onChange={setQuery} />
-          </div>
-          <CategoryFilter
-            categories={groups.map((g) => ({
-              category: g.category,
-              count: g.items.length,
-            }))}
-            selected={selectedCategory}
-            onChange={setSelectedCategory}
-          />
-          {visibleItems.length === 0 ? (
-            query.length > 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No items match &quot;{query}&quot;. Try a different word.
-              </p>
+            {visibleItems.length === 0 ? (
+              query.length > 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No items match &quot;{query}&quot;. Try a different word.
+                </p>
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  No items available at this location.
+                </p>
+              )
             ) : (
-              <p className="text-muted-foreground text-sm">
-                No items available at this location.
-              </p>
-            )
-          ) : (
-            <MenuList
-              groups={filteredGroups}
-              availabilityById={availabilityById}
-              locationTimezone={tz}
-              hideUnavailable={true}
-            />
-          )}
-        </div>
-      )}
-    </DataState>
+              <MenuList
+                groups={filteredGroups}
+                availabilityById={availabilityById}
+                locationTimezone={tz}
+                hideUnavailable={true}
+              />
+            )}
+          </div>
+        )}
+      </DataState>
+      <Dialog
+        open={pendingLocation !== null}
+        onOpenChange={(open) => {
+          if (!open) handleStay();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change location?</DialogTitle>
+            <DialogDescription>
+              Your cart has items from your previous location. Switching empties
+              the cart. What would you like to do?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleStay}>
+              Stay at previous location
+            </Button>
+            <Button variant="destructive" onClick={handleEmptyAndSwitch}>
+              Empty cart and switch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
