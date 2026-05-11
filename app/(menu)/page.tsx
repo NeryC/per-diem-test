@@ -6,6 +6,7 @@ import { DataState } from "@/components/data-state";
 import { CategoryFilter } from "@/components/menu/category-filter";
 import { LocationSwitcher } from "@/components/menu/location-switcher";
 import { MenuList } from "@/components/menu/menu-list";
+import { SearchBar } from "@/components/menu/search-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchCatalog,
@@ -14,6 +15,7 @@ import {
   isItemAtLocation,
   type CategoryGroup,
 } from "@/lib/menu";
+import { matchesQuery } from "@/lib/search";
 import {
   resolveAvailability,
   type AvailabilityState,
@@ -51,6 +53,7 @@ export default function MenuHomePage(): ReactNode {
   const { selectedLocationId, setSelectedLocationId, hasMounted } =
     useSelectedLocation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const now = useNow();
   type FetchState =
     | { status: "loading"; data: MenuData | null; error: null }
@@ -110,10 +113,12 @@ export default function MenuHomePage(): ReactNode {
 
   const visibleItems = useMemo(() => {
     if (!data || !selectedLocationId) return [];
-    return data.catalog.items.filter((it) =>
-      isItemAtLocation(it, selectedLocationId),
+    return data.catalog.items.filter(
+      (it) =>
+        isItemAtLocation(it, selectedLocationId) &&
+        matchesQuery([it.name, it.description], query),
     );
-  }, [data, selectedLocationId]);
+  }, [data, selectedLocationId, query]);
 
   const availabilityById = useMemo<Map<string, AvailabilityState>>(() => {
     const m = new Map<string, AvailabilityState>();
@@ -178,6 +183,7 @@ export default function MenuHomePage(): ReactNode {
               value={selectedLocationId}
               onChange={setSelectedLocationId}
             />
+            <SearchBar value={query} onChange={setQuery} />
           </div>
           <CategoryFilter
             categories={groups.map((g) => ({
@@ -188,9 +194,15 @@ export default function MenuHomePage(): ReactNode {
             onChange={setSelectedCategory}
           />
           {visibleItems.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              No items available at this location.
-            </p>
+            query.length > 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No items match &quot;{query}&quot;. Try a different word.
+              </p>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No items available at this location.
+              </p>
+            )
           ) : (
             <MenuList
               groups={filteredGroups}
