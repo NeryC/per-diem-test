@@ -56,6 +56,17 @@ function isImageObject(
   return obj.type === "IMAGE";
 }
 
+/**
+ * The seed-sandbox script prefixes every catalog object name with "seed: "
+ * so it can find them for the --reset path without colliding with real
+ * merchant data. The proxy strips that prefix on the wire so the UI shows
+ * "Latte" instead of "seed: Latte". The sentinel still lives in Square.
+ */
+function displayName(raw: string | null | undefined): string {
+  if (!raw) return "(unnamed)";
+  return raw.startsWith("seed: ") ? raw.slice(6) : raw;
+}
+
 /** Square Money -> our Money. Returns null for unset prices (variable pricing). */
 function moneyFromSquare(m: Square.Money | undefined | null): Money | null {
   if (!m || m.amount === undefined || m.amount === null || !m.currency) {
@@ -158,7 +169,7 @@ function normalizeModifiers(
     if (!data) continue;
     out.push({
       id: m.id,
-      name: data.name ?? "",
+      name: displayName(data.name),
       priceMoney: moneyFromSquare(data.priceMoney),
       ordinal: typeof data.ordinal === "number" ? data.ordinal : 0,
     });
@@ -207,7 +218,7 @@ function normalizeItem(
   })();
   return {
     id: obj.id,
-    name: data.name ?? "",
+    name: displayName(data.name),
     description: data.description ?? null,
     imageUrl,
     categoryId: firstCategory ?? data.categoryId ?? null,
@@ -274,7 +285,7 @@ function normalizeCategory(
     if (!ov.locationId) continue;
     overrides[ov.locationId] = parseAvailabilityPeriods(ov.availabilityPeriods);
   }
-  const name = data?.name ?? "";
+  const name = displayName(data?.name);
   return {
     id: obj.id,
     name,
@@ -307,7 +318,7 @@ function normalizeModifierList(
       : "SINGLE";
   return {
     id: obj.id,
-    name: data.name ?? "",
+    name: displayName(data.name),
     selectionType,
     minSelected: min >= 0 ? min : 0,
     maxSelected: max > 0 ? max : selectionType === "SINGLE" ? 1 : 0,

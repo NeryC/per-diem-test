@@ -28,6 +28,7 @@ export function LocationSwitcher({
   onChange,
 }: LocationSwitcherProps): ReactNode {
   const active = locations.filter((l) => l.status !== "INACTIVE");
+  const selected = value === null ? null : active.find((l) => l.id === value);
 
   return (
     <Select
@@ -37,7 +38,9 @@ export function LocationSwitcher({
       }}
     >
       <SelectTrigger aria-label="Select location" className="min-w-48">
-        <SelectValue placeholder="Select a location" />
+        <SelectValue placeholder="Select a location">
+          {selected ? selected.name : null}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {active.map((loc) => (
