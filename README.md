@@ -7,7 +7,8 @@ location-scoped cart, and live inventory.
 > Built with Next.js 16 App Router, React 19, TypeScript (strict, no
 > `any`), Tailwind v4, shadcn/ui v4, Zustand, Zod, and the Square SDK v44.
 
-![Screenshot placeholder](docs/screenshots/hero.png)
+<!-- Drop a hero screenshot at docs/screenshots/hero.png and uncomment:
+![Per Diem menu hero](docs/screenshots/hero.png) -->
 
 ---
 
