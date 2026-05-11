@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { DataState } from "@/components/data-state";
 import { CategoryFilter } from "@/components/menu/category-filter";
-import { ItemList } from "@/components/menu/item-list";
 import { LocationSwitcher } from "@/components/menu/location-switcher";
+import { MenuList } from "@/components/menu/menu-list";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchCatalog,
@@ -14,6 +14,11 @@ import {
   isItemAtLocation,
   type CategoryGroup,
 } from "@/lib/menu";
+import {
+  resolveAvailability,
+  type AvailabilityState,
+} from "@/lib/square/availability";
+import { useNow } from "@/lib/time/provider";
 import type { WireCatalog, WireLocation } from "@/lib/types";
 import { useSelectedLocation } from "@/lib/use-selected-location";
 
@@ -46,6 +51,7 @@ export default function MenuHomePage(): ReactNode {
   const { selectedLocationId, setSelectedLocationId, hasMounted } =
     useSelectedLocation();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const now = useNow();
   type FetchState =
     | { status: "loading"; data: MenuData | null; error: null }
     | { status: "ready"; data: MenuData; error: null }
@@ -95,12 +101,44 @@ export default function MenuHomePage(): ReactNode {
     if (first) setSelectedLocationId(first.id);
   }, [hasMounted, selectedLocationId, data, setSelectedLocationId]);
 
+  const selectedLocation = useMemo<WireLocation | null>(() => {
+    if (!data || !selectedLocationId) return null;
+    return data.locations.find((l) => l.id === selectedLocationId) ?? null;
+  }, [data, selectedLocationId]);
+
+  const tz = selectedLocation?.timezone ?? "UTC";
+
   const visibleItems = useMemo(() => {
     if (!data || !selectedLocationId) return [];
     return data.catalog.items.filter((it) =>
       isItemAtLocation(it, selectedLocationId),
     );
   }, [data, selectedLocationId]);
+
+  const availabilityById = useMemo<Map<string, AvailabilityState>>(() => {
+    const m = new Map<string, AvailabilityState>();
+    if (!data || !selectedLocationId) return m;
+    const categoriesById = new Map(
+      data.catalog.categories.map((c) => [c.id, c]),
+    );
+    for (const item of visibleItems) {
+      const category =
+        item.categoryId !== null
+          ? (categoriesById.get(item.categoryId) ?? null)
+          : null;
+      m.set(
+        item.id,
+        resolveAvailability({
+          item,
+          category,
+          locationId: selectedLocationId,
+          locationTimezone: tz,
+          now,
+        }),
+      );
+    }
+    return m;
+  }, [data, selectedLocationId, visibleItems, tz, now]);
 
   const groups = useMemo<CategoryGroup[]>(() => {
     if (!data) return [];
@@ -154,7 +192,12 @@ export default function MenuHomePage(): ReactNode {
               No items available at this location.
             </p>
           ) : (
-            <ItemList groups={filteredGroups} />
+            <MenuList
+              groups={filteredGroups}
+              availabilityById={availabilityById}
+              locationTimezone={tz}
+              hideUnavailable={true}
+            />
           )}
         </div>
       )}

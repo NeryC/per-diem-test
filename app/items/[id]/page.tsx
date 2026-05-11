@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { DataState } from "@/components/data-state";
 import { ItemDetail } from "@/components/menu/item-detail";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchCatalog } from "@/lib/menu";
-import type { WireCatalog, WireItem } from "@/lib/types";
+import { fetchCatalog, fetchLocations } from "@/lib/menu";
+import {
+  resolveAvailability,
+  type AvailabilityState,
+} from "@/lib/square/availability";
+import { useNow } from "@/lib/time/provider";
+import type { WireCatalog, WireItem, WireLocation } from "@/lib/types";
+import { useSelectedLocation } from "@/lib/use-selected-location";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -15,6 +21,8 @@ interface PageProps {
 
 interface DetailData {
   item: WireItem | null;
+  catalog: WireCatalog;
+  locations: WireLocation[];
 }
 
 function LoadingFallback(): ReactNode {
@@ -44,6 +52,8 @@ function NotFound(): ReactNode {
 
 export default function ItemPage({ params }: PageProps): ReactNode {
   const { id } = use(params);
+  const { selectedLocationId, hasMounted } = useSelectedLocation();
+  const now = useNow();
 
   type FetchState =
     | { status: "loading"; data: DetailData | null; error: null }
@@ -58,11 +68,15 @@ export default function ItemPage({ params }: PageProps): ReactNode {
 
   useEffect(() => {
     let cancelled = false;
-    fetchCatalog()
-      .then((catalog: WireCatalog) => {
+    Promise.all([fetchCatalog(), fetchLocations()])
+      .then(([catalog, locations]) => {
         if (cancelled) return;
         const item = catalog.items.find((it) => it.id === id) ?? null;
-        setState({ status: "ready", data: { item }, error: null });
+        setState({
+          status: "ready",
+          data: { item, catalog, locations },
+          error: null,
+        });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -76,6 +90,33 @@ export default function ItemPage({ params }: PageProps): ReactNode {
       cancelled = true;
     };
   }, [id, tick]);
+
+  const resolved = useMemo<{
+    availability: AvailabilityState;
+    timezone: string;
+  } | null>(() => {
+    const data = state.data;
+    if (!data || !data.item || !selectedLocationId) return null;
+    const location =
+      data.locations.find((l) => l.id === selectedLocationId) ?? null;
+    if (!location) return null;
+    const category =
+      data.item.categoryId !== null
+        ? (data.catalog.categories.find(
+            (c) => c.id === data.item?.categoryId,
+          ) ?? null)
+        : null;
+    const availability = resolveAvailability({
+      item: data.item,
+      category,
+      locationId: selectedLocationId,
+      locationTimezone: location.timezone,
+      now,
+    });
+    return { availability, timezone: location.timezone };
+  }, [state.data, selectedLocationId, now]);
+
+  if (!hasMounted) return null;
 
   return (
     <DataState<DetailData>
@@ -93,7 +134,11 @@ export default function ItemPage({ params }: PageProps): ReactNode {
             <Link className="text-sm underline" href="/">
               Back to menu
             </Link>
-            <ItemDetail item={d.item} />
+            <ItemDetail
+              item={d.item}
+              availability={resolved?.availability ?? { kind: "available" }}
+              locationTimezone={resolved?.timezone ?? "UTC"}
+            />
           </div>
         ) : (
           <NotFound />

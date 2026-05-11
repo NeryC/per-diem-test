@@ -3,12 +3,16 @@
 import Image from "next/image";
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { AvailabilityBadge } from "@/components/menu/availability-badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney, parseMoney } from "@/lib/money";
+import type { AvailabilityState } from "@/lib/square/availability";
 import type { WireItem } from "@/lib/types";
 
 export interface ItemDetailProps {
   item: WireItem;
+  availability: AvailabilityState;
+  locationTimezone: string;
 }
 
 /**
@@ -20,7 +24,11 @@ export interface ItemDetailProps {
  *
  * Refs: spec §2 core requirement 5
  */
-export function ItemDetail({ item }: ItemDetailProps): ReactNode {
+export function ItemDetail({
+  item,
+  availability,
+  locationTimezone,
+}: ItemDetailProps): ReactNode {
   const first = item.variations[0];
   const [variationId, setVariationId] = useState<string | null>(
     first ? first.id : null,
@@ -47,7 +55,13 @@ export function ItemDetail({ item }: ItemDetailProps): ReactNode {
       ) : null}
 
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{item.name}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{item.name}</h1>
+          <AvailabilityBadge
+            state={availability}
+            locationTimezone={locationTimezone}
+          />
+        </div>
         {item.description ? (
           <p className="text-muted-foreground text-sm">{item.description}</p>
         ) : null}

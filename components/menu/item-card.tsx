@@ -3,12 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AvailabilityBadge } from "@/components/menu/availability-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney, parseMoney, type Money } from "@/lib/money";
+import type { AvailabilityState } from "@/lib/square/availability";
 import type { WireItem, WireItemVariation } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export interface ItemCardProps {
   item: WireItem;
+  availability: AvailabilityState;
+  locationTimezone: string;
 }
 
 /**
@@ -40,15 +45,20 @@ function priceLabel(variations: WireItemVariation[]): string | null {
   return `${formatMoney(min)} – ${formatMoney(max)}`;
 }
 
-export function ItemCard({ item }: ItemCardProps): ReactNode {
+export function ItemCard({
+  item,
+  availability,
+  locationTimezone,
+}: ItemCardProps): ReactNode {
   const price = priceLabel(item.variations);
+  const dimmed = availability.kind !== "available";
 
   return (
     <Link
       href={`/items/${item.id}`}
       className="focus-visible:ring-ring block rounded-xl focus:outline-none focus-visible:ring-2"
     >
-      <Card className="h-full">
+      <Card className={cn("h-full", dimmed && "opacity-60")}>
         {item.imageUrl ? (
           <div className="relative aspect-square w-full">
             <Image
@@ -61,7 +71,13 @@ export function ItemCard({ item }: ItemCardProps): ReactNode {
           </div>
         ) : null}
         <CardContent className="flex flex-col gap-1 px-4">
-          <h3 className="leading-tight font-medium">{item.name}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="leading-tight font-medium">{item.name}</h3>
+            <AvailabilityBadge
+              state={availability}
+              locationTimezone={locationTimezone}
+            />
+          </div>
           {item.description ? (
             <p className="text-muted-foreground line-clamp-2 text-xs">
               {item.description}
