@@ -54,3 +54,5 @@ next-env.d.ts
 .superpowers/
 council-report-*.html
 council-transcript-*.md
+
+.vercel
