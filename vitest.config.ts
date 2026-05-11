@@ -10,6 +10,10 @@ export default defineConfig({
     passWithNoTests: true,
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./") },
+    alias: {
+      "@": path.resolve(__dirname, "./"),
+      // server-only throws on import outside RSC; map it to a noop in tests.
+      "server-only": path.resolve(__dirname, "./tests/server-only-shim.ts"),
+    },
   },
 });
