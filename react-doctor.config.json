@@ -1,5 +1,22 @@
 {
   "ignore": {
-    "files": ["components/ui/**"]
+    "files": ["components/ui/**"],
+    "overrides": [
+      {
+        "files": ["components/menu/availability-badge.tsx"],
+        "rules": ["react-doctor/js-hoist-intl"]
+      },
+      {
+        "files": ["components/menu/search-bar.tsx"],
+        "rules": ["react-doctor/no-derived-useState"]
+      },
+      {
+        "files": ["lib/time/provider.tsx"],
+        "rules": [
+          "react-doctor/nextjs-no-use-search-params-without-suspense",
+          "react-doctor/react-compiler-destructure-method"
+        ]
+      }
+    ]
   }
 }

@@ -13,7 +13,6 @@ const futureFmtCache = new Map<string, Intl.DateTimeFormat>();
 function getTodayFmt(tz: string): Intl.DateTimeFormat {
   let f = todayFmtCache.get(tz);
   if (!f) {
-    // react-doctor-disable-next-line react-doctor/js-hoist-intl -- formatter depends on the location tz (a render-time prop), so it cannot be module-scope-constructed; the Map above caches per-tz so each unique timezone constructs at most once.
     f = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       hour: "numeric",
@@ -27,7 +26,6 @@ function getTodayFmt(tz: string): Intl.DateTimeFormat {
 function getFutureFmt(tz: string): Intl.DateTimeFormat {
   let f = futureFmtCache.get(tz);
   if (!f) {
-    // react-doctor-disable-next-line react-doctor/js-hoist-intl -- formatter depends on the location tz (a render-time prop), so it cannot be module-scope-constructed; the Map above caches per-tz so each unique timezone constructs at most once.
     f = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       weekday: "short",

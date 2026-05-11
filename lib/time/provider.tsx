@@ -28,9 +28,7 @@ function parseAtParam(raw: string | null): Date | null {
 }
 
 export function TimeProvider({ children }: { children: ReactNode }): ReactNode {
-  // react-doctor-disable-next-line react-doctor/nextjs-no-use-search-params-without-suspense, react-doctor/react-compiler-destructure-method -- TimeProvider is wrapped in <Suspense fallback={null}> at app/layout.tsx; URLSearchParams.get is a prototype method that requires `this`, so destructuring would break the binding.
   const params = useSearchParams();
-  // react-doctor-disable-next-line react-doctor/react-compiler-destructure-method -- URLSearchParams.get is a prototype method that requires `this`; destructuring breaks the binding.
   const simulatedAt = parseAtParam(params.get("at"));
   const [realNow, setRealNow] = useState<Date>(() => new Date());
 

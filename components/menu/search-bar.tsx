@@ -19,7 +19,6 @@ type Props = {
  * useEffectEvent until it ships stable.
  */
 export function SearchBar({ value, onChange }: Props) {
-  // react-doctor-disable-next-line react-doctor/no-derived-useState -- prop is a one-shot initializer; child owns the visible input state so typing doesn't lag a debounce tick behind keystrokes.
   const [local, setLocal] = useState(value);
   const ref = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
