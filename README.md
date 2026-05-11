@@ -214,13 +214,19 @@ in both NY and LA.
 
 ## What I'd build next with another week
 
+- **Merge duplicate cart lines.** Adding the same item with the same
+  variation and the exact same modifier selection currently creates a
+  second line instead of bumping `qty` on the existing one. The fix
+  is a structural compare in `addLine` against the existing lines —
+  same `variationId` plus a normalized modifier-id set means merge
+  qty; otherwise push a new line. Square Orders models line items
+  the same way, so this also lines up cleanly with a future payments
+  integration.
 - Real Square OAuth flow for production deployments.
-- Service worker for asset caching (catalog + locations already cache
-  to localStorage today).
 - Order submission with the Square Payments API.
 - Component test coverage beyond the pure modules (currently:
   resolver, zoned helpers, money, cart-selectors, cart-store,
-  square-errors, search).
+  square-errors, search, offline-cache).
 - Lighthouse a11y audit on a real dev server with a real token.
 - Sorted variation list keys for a stabler `unstable_cache` hash.
 - Pause inventory polling when no menu items are rendered (saves
